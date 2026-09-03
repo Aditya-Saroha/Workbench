@@ -1,0 +1,547 @@
+[
+  {
+    "text": "MANUFACTURERS GUIDE \nTO CYBERSECURITY \nFor Small and Medium-Sized \nManufacturers",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 1
+  },
+  {
+    "text": "Table of Contents\nA Growing Threat to U.S. Manufacturing\nUnderstanding the Risks to Your SMM Firm\nProtecting Your SMM Firm \n•\t\nIdentify\n•\t\nProtect\n•\t\nDetect\n•\t\nRespond\n•\t\nRecover\nNIST Cybersecurity Framework Steps\n01\n04\n06\n07\n09\n15\n17\n19\n21",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 2
+  },
+  {
+    "text": "1\nIf you’re like most U.S. small and medium-sized manufacturers (SMMs), you rely heavily on information technology \nto conduct business. Day-to-day business operations like banking, payroll and purchasing are all conducted over \nthe Internet. Machines on the shop floor are connected to networks and employees use mobile devices to access \ncompany information. Have you ever considered how vulnerable your SMM firm might be? Hackers and cyber \ncriminals are focusing their attention on SMMs just like",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 3
+  },
+  {
+    "text": "your SMM firm might be? Hackers and cyber \ncriminals are focusing their attention on SMMs just like you.\nMany larger manufacturers in the U.S. have been putting people, technology and money into protecting \nthemselves from cybersecurity threats. These manufacturers have become more difficult targets for malicious \nattacks from hackers and cyber criminals. Because SMMs typically don’t have the resources to invest in cybersecurity \nthe way larger manufacturers can, many cyber criminals view them",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 3
+  },
+  {
+    "text": "ources to invest in cybersecurity \nthe way larger manufacturers can, many cyber criminals view them as soft targets. \nYou may not consider yourself a target, but your SMM \nfirm may have money or information that can be valuable \nto a criminal. Your computer can be compromised and \nused to launch an attack on someone else (i.e., a botnet) \nor your firm may provide access to more high-profile \ntargets through your products, services or role in a supply \nchain. \nIt is important to note that crimina",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 3
+  },
+  {
+    "text": "ts through your products, services or role in a supply \nchain. \nIt is important to note that criminals aren’t always after \nprofit. Some may attack your manufacturing company \nout of revenge (e.g., for firing them or somebody they \nknow) or for the thrill of causing havoc. Similarly, not \nall events that affect security are caused by criminals. \nEnvironmental events such as fires or floods can severely \ndamage computer systems.\nA Growing Threat to U.S. Manufacturing\n61% of small \nbusinesses have",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 3
+  },
+  {
+    "text": "erely \ndamage computer systems.\nA Growing Threat to U.S. Manufacturing\n61% of small \nbusinesses have \nexperienced a \ncyberattack in the\npast 12 months.\nCommon Types of Attacks and Breaches\nRansomware\nSPAM\nIdentity Theft\nWeb Attacks\nSpear Phishing\nSource: 2017 State of Cybersecurity in Small & Medium-Sized Businesses, \nPonemon Institute\n1",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 3
+  },
+  {
+    "text": "2\nUnfortunately, SMMs often have more to lose than larger manufacturers because an event — whether due to a \nhacker, natural disaster or business resource loss — can have a major impact. SMMs are often less prepared to \nhandle these types of events. But because SMMs often have less complex operational needs and IT infrastructure, \nthey may be able to take steps to detect and recover from a cybersecurity incident quickly. It is vitally important \nthat you consider how to protect your business bef",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 4
+  },
+  {
+    "text": "curity incident quickly. It is vitally important \nthat you consider how to protect your business before an incident occurs.\nSMMs often see cybersecurity as too difficult or too expensive. It’s true that there are no easy, one-size-fits-all \nsolutions. If cybersecurity is considered part of the business’s overall risk management strategy, it doesn’t have to \nbe intimidating. \nCybersecurity can be a key differentiator for your company. A cybersecurity \nprogram can help your company gain and retain",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 4
+  },
+  {
+    "text": "key differentiator for your company. A cybersecurity \nprogram can help your company gain and retain customers, employees and \nbusiness partners. \nCustomers have an expectation that their sensitive information will be \nprotected from theft, disclosure or misuse. Protecting your customers’ \ninformation is an example of good customer service and shows your \ncustomers that you value their business, potentially increasing your       \nbusiness opportunities. \nEmployees have an expectation that their",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 4
+  },
+  {
+    "text": "otentially increasing your       \nbusiness opportunities. \nEmployees have an expectation that their sensitive personal information will be protected and a cybersecurity \nprogram can help employees feel secure. Business partners want assurance that their information, systems and \nnetworks are not put at risk when they connect to and do business with your SMM firm. \nCybersecurity incidents can have devastating impacts on SMMs, including:\n•\t\nDamage to information or information systems\n•\t\nRegulator",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 4
+  },
+  {
+    "text": "devastating impacts on SMMs, including:\n•\t\nDamage to information or information systems\n•\t\nRegulatory fines and penalties / legal fees\n•\t\nDecreased or stopped productivity\n•\t\nLoss of information critical in running your business\n•\t\nLoss of customers\n•\t\nDamage to your credit and inability to get loans from banks\n•\t\nLoss of business income",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 4
+  },
+  {
+    "text": "3\nDemonstrating to potential business partners that you have a method to protect their information can help grow \nyour business relationships. Developing or improving your cybersecurity program will also make it easier for your \ncompany to innovate – taking advantage of new technologies that can lower costs while delivering better services \nto your customers. \nIt is not possible for any business to be completely secure. But, it is possible — and reasonable — to implement a \nprogram that balances",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 5
+  },
+  {
+    "text": "o be completely secure. But, it is possible — and reasonable — to implement a \nprogram that balances security with the needs and capabilities of your SMM firm. This guide provides SMMs with \nbasic practices and tools needed to develop a cybersecurity program.\n68%\n58%\n57%\n42%\n63%\n38%\n69%\n37%\n62%\n33%\n60%\n32%\n63%\n31%\nACTIONS TAKEN TO ENHANCE CYBERSECURITY\nPROVIDING RISK \nAWARENESS \nTRAINING FOR \nEMPLOYEES\nCOMPANIES WITH LESS THAN $500M IN REVENUE\nCOMPANIES WITH MORE THAN $500M IN REVENUE\nPARTNERING",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 5
+  },
+  {
+    "text": "OYEES\nCOMPANIES WITH LESS THAN $500M IN REVENUE\nCOMPANIES WITH MORE THAN $500M IN REVENUE\nPARTNERING WITH \nAN OUTSIDE\n FIRM FOR ITS\n CYBERSECURITY \nEXPERTISE\nCONDUCTING \nCYBER AUDITS\nHIRING INTERNAL \nPROFESSIONALS \nWITH CYBERSECURITY \nEXPERTISE\nADVERTISING \nPENETRATION\nTESTING\nASSESSING THE \nSTRENGTH OF \nCYBERSECURITY \nAT VENDORS\nPERFORMING \nPHISHING \nEXERCISES ON \nEMPLOYEES\nSource: Sikich M&D REPORT 2019",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 5
+  },
+  {
+    "text": "ORT 2019",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 5
+  },
+  {
+    "text": "4\nRisk is a function of threats, vulnerabilities, the likelihood of an event and the potential impact an event would have \non your SMM firm. Most of us make risk-based decisions every day. While driving to work, we assess threats and \nvulnerabilities such as weather and traffic conditions, the skill of other drivers on the road and the safety features \nand reliability of the vehicle we drive. \nBy understanding your risks, you can know where to focus your efforts. While you can never eliminate yo",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "understanding your risks, you can know where to focus your efforts. While you can never eliminate your \nrisks, the goal of your cybersecurity program is to give reasonable assurance you have made informed \ndecisions related to the security of your information.\nIt is impossible to completely understand all your risks perfectly. There will be many times when you will have to \nmake a reasonable effort when trying to understand threats, vulnerabilities, potential impact and likelihood. For this \nrea",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "t when trying to understand threats, vulnerabilities, potential impact and likelihood. For this \nreason, it is important to utilize all resources available to you, including information sharing organizations (visit the \nDepartment of Homeland Security website for more information) relevant stakeholders and knowledge experts.\nThree Elements of Risk\nThreats\nUnderstanding the Risks to Your SMM Firm\nAnything that might adversely affect the information your business needs \nto operate. Threats might c",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "nything that might adversely affect the information your business needs \nto operate. Threats might come in the form of people or natural events and \nthey can be accidents or intentional. Some of the most common information \nsecurity threats include:\n•\t Environmental, such as fire, water, tornado or earthquake\n•\t Business resources, such as equipment failure, supply chain disruption or \nemployees\n•\t Hostile actors, such as hackers, hacktivists, criminals or nation-state actor\n•\t Insider threats -",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "Hostile actors, such as hackers, hacktivists, criminals or nation-state actor\n•\t Insider threats - employees and contractors\nYou may not have considered natural events as threats to your firm’s \ninformation security, but what would happen if you had a flood in your office? \nComputers, servers and paper documents can be destroyed by even a small \namount of water. If it is a large flood, you may not be allowed in the area to \nprotect or collect the information your SMM firm needs to operate.\n4",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "ot be allowed in the area to \nprotect or collect the information your SMM firm needs to operate.\n4",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 6
+  },
+  {
+    "text": "5\nVulnerability\nLikelihood \nGoing through this process was great for our organization,” said Zach Mottl, Chief \nAlignment Officer for Atlas Tool. “It’s all about developing good habits.” As a small \nbusiness, Atlas Tool was accustomed to creating workarounds to simplify administrative \npractices, but that is not an option when it comes to cybersecurity. \nThe company worked with IMEC (MEP Center in Illinois) to provide workforce training \nhelping Atlas Tool employees understand the security preca",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 7
+  },
+  {
+    "text": "Illinois) to provide workforce training \nhelping Atlas Tool employees understand the security precautions and reporting \nprotocols. The requirements ensure Atlas Tool is protecting its data, preventing intrusions \nand notifying the appropriate people in the event of a security compromise. \n“Addressing the compliance requirements was important for us to become a more \nrobust and secure organization,” said Mottl. “I know all businesses would benefit from the \nassessment, not just defense contract",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 7
+  },
+  {
+    "text": "n,” said Mottl. “I know all businesses would benefit from the \nassessment, not just defense contractors.\n“\n“\nA weakness that could be used to harm the business. Any time information is \nnot being adequately protected it represents a vulnerability. Most information \nsecurity breaches can be traced back to only a few types of common \nvulnerabilities.\nThis guide will help you minimize your vulnerabilities and reduce the impact of \na security incident should one happen.\nSome threats affect SMMs diff",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 7
+  },
+  {
+    "text": "ities and reduce the impact of \na security incident should one happen.\nSome threats affect SMMs differently. For example, an SMM that sells products \nonline may be more concerned about website defacement than a business \nwith little or no web presence. \nThe chance a threat will affect your business and helps determine what types of \nprotections to put in place. \nMost SMMs have different types of business information. If a marketing pamphlet \nis leaked online, it will probably not harm the busine",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 7
+  },
+  {
+    "text": "usiness information. If a marketing pamphlet \nis leaked online, it will probably not harm the business nearly as much as if, for \nexample, sensitive customer information or proprietary business data was leaked. \nThe impact an event could have depends on the information affected and on the \nnature of the SMM’s business.\nMEP National Network Helps Small Manufacturers",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 7
+  },
+  {
+    "text": "6\nProtecting Your SMM Firm \nThe Framework for Improving Critical Infrastructure Cybersecurity (the “NIST Cybersecurity Framework”) helps \norganize the processes and tools you should consider in protecting your information. This is not a one-time \nprocess, but a continual, ongoing set of activities. \nThere are some common practices you and your employees can implement to help keep your SMM firm \nsafe. The specific mitigation activities in this section are grouped into the five broad categories of",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 8
+  },
+  {
+    "text": "fe. The specific mitigation activities in this section are grouped into the five broad categories of the \nCybersecurity Framework.\nNIST \nCybersecurity\nFramework\nDevelop an organizational understanding to manage \ncybersecurity risk to systems, people, assets, data and \ncapabilities.\nDevelop and implement \nappropriate safeguards \nto ensure delivery of \ncritical services.\nDevelop and implement \nappropriate activities to \nidentify the occurrence \nof a cybersecurity event.\nDevelop and \nimplement appr",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 8
+  },
+  {
+    "text": "priate activities to \nidentify the occurrence \nof a cybersecurity event.\nDevelop and \nimplement appropriate \nactivities to take action \nregarding a detected \ncybersecurity incident.\nDevelop and implement \nappropriate activities \nto maintain plans for \nresilience and to restore \nany capabilities or services \nthat were impaired due to a \ncybersecurity incident.\nPROTECT\nIDENTIFY\nDETECT\nRESPOND\nRECOVER",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 8
+  },
+  {
+    "text": "R",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 8
+  },
+  {
+    "text": "7\nConduct background checks*\nDo a full, nationwide criminal background check, sexual offender check and if possible, a credit check on all \nprospective employees, especially if they will be handling your business funds. \nConsider doing a background check on yourself. Many SMM owners or executives become aware that they are \nvictims of identity theft only after they do a background check on themselves. You may find reported arrest records \nand unusual previous addresses where you never lived. Thi",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "ves. You may find reported arrest records \nand unusual previous addresses where you never lived. This can be an indication that your identity has been stolen.\nIf prospective employees are applying for a job with educational requirements, call the schools they attended and \nverify their actual degree(s) or certificates(s), date(s) of graduation and GPA(s). If they provided references, call those \nreferences to verify the dates they worked for a company and other specifics to ensure the prospectiv",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "eferences to verify the dates they worked for a company and other specifics to ensure the prospective employee is \nbeing honest.\n *Be sure follow your state’s laws regarding prospective employee background checks.\nIdentify and control who has access to your SMM firm’s \ninformation\nControl who has or should have access to your SMM firm’s information and technology. Know what type of access \neach employee has and include both physical and logical access. Employees may have a key or administrative",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "ployee has and include both physical and logical access. Employees may have a key or administrative \nprivilege or a password that is required to gain access. To help collect this information, review your list of accounts \nand what privileges those accounts have. Be aware of anyone who has access to your SMM firm. \nDo not allow unknown or unauthorized persons to have physical access to     \nany of your firm’s computers. \nThis includes cleaning crews and maintenance personnel. Do not allow compute",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "your firm’s computers. \nThis includes cleaning crews and maintenance personnel. Do not allow computer or network repair personnel \nto work on systems or devices unsupervised. No unrecognized person should be able to enter your office space \nwithout being questioned by an employee. If a criminal gains physical access to an unlocked machine, they can \nsteal any private or sensitive information on that machine with relative ease. \nPhysically lock up your laptops and other mobile devices when they a",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "at machine with relative ease. \nPhysically lock up your laptops and other mobile devices when they are not in use. Use the session lock feature \nincluded with many operating systems, which locks the screen if the computer is not used for a specified period \n(e.g., 2 minutes). Use a privacy screen or position each computer’s display so that people walking by cannot see the \ninformation on the screen.\nIDENTIFY\nThe activities in the Identify Function help increase your SMM firm’s\nunderstanding of r",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "n.\nIDENTIFY\nThe activities in the Identify Function help increase your SMM firm’s\nunderstanding of resources and risks.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 9
+  },
+  {
+    "text": "8\nRequire individual user accounts for each employee\nSet up a separate account for each user (including any \ncontractors needing access) and require strong, unique \npasswords be used for each account. Without individual \naccounts for each user, you may find it difficult to investigate \ndata loss or unauthorized data manipulation. \nEnsure all employees use computer accounts without \nadministrative privileges to perform typical work functions. \nThis will hinder any attempt — intentional or not — t",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "privileges to perform typical work functions. \nThis will hinder any attempt — intentional or not — to install \nunauthorized software. Consider using a guest account with \nminimal privileges (e.g., Internet access only)  if needed for your \nSMM firm.\nCreate policies and procedures \nfor information security\nPolicies and procedures are used to identify acceptable practices and expectations for business operations, can be \nused to train new employees on your information security expectations and can",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "ss operations, can be \nused to train new employees on your information security expectations and can aid an investigation in case of an \nincident. These policies and procedures should be readily accessible to employees – (i.e. in an employee handbook \nor manual).\nThe scope and breadth of policies is largely determined by the type of business and the degree of control and \naccountability desired by management. Have a legal professional familiar with cyber law review the policies to \nensure they a",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "management. Have a legal professional familiar with cyber law review the policies to \nensure they are compliant with local laws and regulations.\nPolicies and procedures for information security and cybersecurity should clearly describe your expectations for \nprotecting your information and systems. These policies should identify the information and other resources that \nare important and should clearly describe how management expects those resources to be used and protected by \nall employees. E",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "learly describe how management expects those resources to be used and protected by \nall employees. Examples of policies are readily available online and a legal, insurance or cybersecurity professional \nmay have examples of policies as well. \nAll employees should sign a statement agreeing they have read the policies and relevant procedures and they will \nfollow these policies and procedures. If there are penalties associated with violating the policies and procedures, \nemployees should be aware",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "ere are penalties associated with violating the policies and procedures, \nemployees should be aware of them. The signed agreement should be kept in the employee’s Human Resource file.\nPolicies and procedures should be reviewed and updated at least annually and as there are changes in \nthe organization or technology. Whenever the policies are changed, employees should be made aware of the \nchanges and sign the new policy acknowledging their understanding. This can be done in conjunction with annu",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "and sign the new policy acknowledging their understanding. This can be done in conjunction with annual \ntraining activities. \nMore than 2 million \ncyber incidents in 2018 \ncollectively caused at least \n$45 billion in losses and it’s \nprobably worse than that \nbecause many incidents  \ngo unreported.\nSource: 2018 Cyber Incident & Breach Trends Report - \nOnline Trust Alliance",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 10
+  },
+  {
+    "text": "9\nPROTECT\nThe Protect Function helps limit or contain the impact of a potential \ninformation security or cybersecurity event.\n\nLimit employee access to data and information\nDon’t allow any employee to have access to all of the SMM firm’s information or systems, such as financial, \npersonnel, inventory or manufacturing information or systems. Employees should only have access to the systems \nand specific information needed to do their jobs. Do not allow a single individual to both initiate and ap",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 11
+  },
+  {
+    "text": "ecific information needed to do their jobs. Do not allow a single individual to both initiate and approve a \ntransaction, financial or otherwise. This includes executives and senior managers.\nInsiders – employees or others who work for an SMM – are a main source of security incidents. Because they are \ntrusted and have been given access to important business information and systems, they can easily cause harm \neither deliberately or unintentionally. Unfortunately, these types of insider threats",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 11
+  },
+  {
+    "text": "y cause harm \neither deliberately or unintentionally. Unfortunately, these types of insider threats can be difficult to detect, so \nprotecting against them is very important.\nWhen an employee leaves the SMM, remove their access to the SMM’s information or systems. This may involve \ncollecting their ID badge, deleting their username and account from all systems, changing any group passwords or \ncombination locks they may have known and collecting any keys they were given. \n95% of all breaches cou",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 11
+  },
+  {
+    "text": "bination locks they may have known and collecting any keys they were given. \n95% of all breaches could have been avoided through simple \nand common-sense approaches to improving security.\nSource: 2018 Cyber Incident & Breach Trends Report - Online Trust Alliance",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 11
+  },
+  {
+    "text": "10\nPatch your operating systems and applications\nAny software application, including operating systems, firmware or plugin installed on a system, could provide \nthe means for an attack. Only install those applications you need to run your SMM firm and patch or update them \nregularly. Many software vendors provide patches and updates to their supported products to correct security \nconcerns and improve functionality. Update and patch all software on each device you own or use.\n \nWhen you purchase",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "rove functionality. Update and patch all software on each device you own or use.\n \nWhen you purchase new computers, check for updates immediately. Do the same when installing new software. \nYou should only install a current and vendor-supported version of software. \nIt may be useful to assign a day each month to check for patches. There are products which can scan your system \nand notify you when there is an update for an application you have installed. If you use one of these products, \nmake su",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "there is an update for an application you have installed. If you use one of these products, \nmake sure it checks for updates for every application you use. You can check for updates directly with the original \nmanufacturers of the applications you have installed.\nInstall surge protectors and Uninterruptible Power \nSupplies (UPS)\nSurge protectors prevent spikes and dips in power from damaging your electronic systems. An Uninterruptible \nPower Supply (UPS) provides a limited amount of battery powe",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "electronic systems. An Uninterruptible \nPower Supply (UPS) provides a limited amount of battery power to allow you to work through short power outages \nand provides enough time to save your data when the electricity goes off. A UPS often provides surge protection as \nwell. Make sure the size and type of UPS meets the needs of your SMM firm.\nEnsure each of your computers and critical network devices are plugged into a UPS. Plug less sensitive electronics \ninto surge protectors. Test and replace t",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "s are plugged into a UPS. Plug less sensitive electronics \ninto surge protectors. Test and replace the UPS and surge protector as recommended by the manufacturer.\nVendors are not required to provide security updates for unsupported \nproducts. For example, Microsoft ended support for Windows XP on \nApril 8, 2014 and no new patches will be provided for that operating \nsystem, even though it has known vulnerabilities.\n10",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "n vulnerabilities.\n10",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 12
+  },
+  {
+    "text": "11\nInstall and activate software and hardware firewalls on all \nyour business networks\nFirewalls can be used to block unwanted traffic such as known \nmalicious communications or browsing to inappropriate \nwebsites, depending on the settings. Install and operate a \nhardware firewall between your internal network and the \nInternet. This may be a function of a wireless access point/router \nor it may be a function of a router provided by your Internet \nService Provider (ISP). There are many hardware",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "be a function of a router provided by your Internet \nService Provider (ISP). There are many hardware vendors that \nprovide firewall wireless access points/routers, firewall routers \nand separate firewall devices. Install anti-virus software on the \nfirewall. \nFor these devices, change the administrative password upon \ninstallation and regularly thereafter. Consider changing the administrator’s log-in as well. The default values \nare typically known or easily guessed and if not changed, may allow",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "-in as well. The default values \nare typically known or easily guessed and if not changed, may allow hackers to control your device and \nmonitor or record all your communications and data via the Internet.\nInstall, use and regularly update a software firewall on each computer system used in your SMM firm (including \nsmart phones and other networked devices if possible). If given the option, ensure logging is enabled as this will aid \nin the investigation of an event by providing evidence. Many o",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "logging is enabled as this will aid \nin the investigation of an event by providing evidence. Many operating systems include a firewall, but you should \nensure that the firewall is operating and logging activity.\nYou should only use a current (updated), authentic and vendor-supported \nversion of the hardware and software firewall. \nIt is necessary to have firewalls on each of your computers and networks even if you use a cloud service provider \n(CSP) or a virtual private network (VPN). If employ",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "tworks even if you use a cloud service provider \n(CSP) or a virtual private network (VPN). If employees can do any kind of work at home, ensure home network and \nsystems have hardware and software firewalls installed and are operational. Employees should perform regular \nupdates.\nIn addition to a basic hardware firewall, you may want to consider installing an Intrusion Detection / Prevention \nSystem (IDPS). These devices analyze network traffic at a more detailed level and can provide a greater",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "em (IDPS). These devices analyze network traffic at a more detailed level and can provide a greater level of \nprotection.\nMalware (short for\nMalicious Software or \nMalicious Code) is \ncomputer code written\nto steal or harm.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 13
+  },
+  {
+    "text": "12\nSecure your wireless access point and networks\nIf you use wireless networking, set up your router as follows (view the owner’s manual for directions on how to \nmake these changes):\n•\t\nChange the administrative password that was on the device when you received it\n•\t\nSet the wireless access point so that it does not broadcast its Service Set Identifier (SSID)\n•\t\nSet your router to use WiFi Protected Access 2 (WPA-2), with the Advanced Encryption Standard (AES) for \nencryption. Do not use WEP (W",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "ted Access 2 (WPA-2), with the Advanced Encryption Standard (AES) for \nencryption. Do not use WEP (Wired-Equivalent Privacy) as it is not considered secure\nIf your SMM firm provides wireless Internet access to customers or visitors, ensure it is separated from your \nbusiness network. \nAvoid connecting to unknown, unsecured or “guest” wireless access points, even for performing non-business \nactivities. Access only those wireless access points that you own or trust. If you or your employees must",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "ties. Access only those wireless access points that you own or trust. If you or your employees must connect to \nunknown networks or conduct work from home, consider implementing an encrypted VPN capability, which will \nallow for a more secure connection. \nSet up web and email filters\nEmail filters can help remove emails known to have malware \nattached and prevent your inbox from being cluttered by \nunsolicited and undesired email or spam. Email providers may \noffer this capability. If your SMM f",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "unsolicited and undesired email or spam. Email providers may \noffer this capability. If your SMM firm hosts your own email \nservers, use filtering if possible. \nSimilarly, many web browsers allow web filtering, notifying the \nuser if a website may contain malware and potentially preventing \nthem from accessing that website. Enable this option if available.\nYou may want to consider blocking employees from going \nto websites that are frequently associated with cybersecurity \nthreats. This may in",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "yees from going \nto websites that are frequently associated with cybersecurity \nthreats. This may include sites with pornographic content or \nsocial media. This can help prevent employees from accidentally \ndownloading malware, wasting business resources and conducting illicit activity using business resources. Many \nfirewalls and routers can be set up to block, or “blacklist,” certain addresses or to allow, or “whitelist,” certain \naddresses. Blacklists can be downloaded online or obtained as p",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "r to allow, or “whitelist,” certain \naddresses. Blacklists can be downloaded online or obtained as part of a service.\n90% of malware is \ndelivered via email and all it \ntakes is one wrong click to \ncompromise your business.\nSource:  2019 Data Breach Investigations Report, Verizon",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 14
+  },
+  {
+    "text": "13\nUse encryption for sensitive business information\nEncryption is a process of making your electronically stored information unreadable to anyone not having the \ncorrect password or key. Use full-disk encryption — which encrypts all information on the storage media – on all \nof your computers, tablets and smart phones. Many systems come with full-disk encryption capabilities. Not all \nmobile devices provide this capability.\nDo not forget your encryption password or key! If you lose or forget yo",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "ces provide this capability.\nDo not forget your encryption password or key! If you lose or forget your key, you will lose your \ninformation. Save a copy of your encryption password or key in a secure location separate from where your \nbackups are stored.\nIf you send sensitive documents or emails at your SMM firm, you may want to consider encrypting those \ndocuments and/or emails. Many document and email applications provide for this capability. Typically, the \nreceiver will need to have the same",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "email applications provide for this capability. Typically, the \nreceiver will need to have the same application to decrypt the message or document as you used to encrypt it. If \nyou need to send them a password or key, give it to them via phone or other method. Never send it in the same \nemail as the encrypted document.\n\nDispose of old computers and media safely\nSmall manufacturers sell, throw away or donate old computers and media. When disposing of old business \ncomputers, first electronicall",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "ay or donate old computers and media. When disposing of old business \ncomputers, first electronically wipe the hard drive(s). Many operating systems provide this capability and there are \nseveral downloadable applications that can also do this. If you can’t wipe the hard drive for any reason, consider \ndegaussing the hard drive.\nAfter wiping the hard drive(s), remove them and have them physically destroyed. You can sell, donate or \nrecycle the machine after the hard drive has been removed. Many",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "destroyed. You can sell, donate or \nrecycle the machine after the hard drive has been removed. Many companies will crush or shred them for you. \nConsider choosing companies that will allow you to watch the process. \nInstall a remote-wiping application on your computer, tablet, cell phone and other mobile device. If the device is \nlost or stolen, you can use these applications to wipe all information from the device.\nWhen disposing of old media such as compact disks (CDs) and Universal Serial Bus",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "on from the device.\nWhen disposing of old media such as compact disks (CDs) and Universal Serial Bus (USB) flash drives, first delete \nany sensitive business or personal data. Then destroy the media either by shredding it or taking it to a company \nthat will shred it for you. When disposing of paper containing sensitive information, destroy it by using a crosscut \nshredder. \nYou may want to consider incinerating paper and other media that contain very sensitive information.\n\n13",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "er incinerating paper and other media that contain very sensitive information.\n\n13",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 15
+  },
+  {
+    "text": "14\nTrain your employees\nTrain employees immediately when hired and at least annually thereafter about your information security policies \nand what they will be expected to do to protect your business’s information and technology. Have employees sign a \nstatement that they will follow your policies and that they understand the penalties for not following your policies.\nTrain employees on:\n•\t\nWhat they can use business computers and mobile devices for, such as if they can use them to check their",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 16
+  },
+  {
+    "text": "hey can use business computers and mobile devices for, such as if they can use them to check their \npersonal email\n•\t\nHow they are expected to treat customer or business information, such as whether they can take that \ninformation home with them\n•\t\nWhat to do in case of an emergency or security incident\n•\t\nBasic practices\nContinually reinforce the training in everyday conversations or meetings. Monthly or quarterly training, \nmeetings or newsletters on a specific subject can help reinforce the i",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 16
+  },
+  {
+    "text": "nthly or quarterly training, \nmeetings or newsletters on a specific subject can help reinforce the importance of security and develop a \nculture of security.    \nEmployee training is critical when it comes to cybersecurity. \nTraining teaches employees to understand vulnerabilities and \nthreats to business operations.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 16
+  },
+  {
+    "text": "15\nDETECT\nThe activities under the Detect Function allow timely discovery of \ninformation security or cybersecurity events. \nInstall and update anti-virus, anti-spyware and other \nanti–malware programs\nMalware (short for Malicious Software or Malicious Code) is \ncomputer code written to steal or harm. It includes viruses, \nspyware and ransomware. Sometimes malware only uses up \ncomputing resources (e.g., memory), but other times it can record \nyour actions or send your personal and sensitive inf",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "(e.g., memory), but other times it can record \nyour actions or send your personal and sensitive information to \ncyber criminals.\nInstall, use and regularly update anti-virus and anti-spyware \nsoftware on every device throughout your SMM firm \n(including computers, smart phones and tablets). \nIt may be useful to set the anti-virus and anti-spyware software to \nautomatically check for updates at least daily (or in “real-time”, if \navailable) and then set it to run a complete scan soon afterwards.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "ast daily (or in “real-time”, if \navailable) and then set it to run a complete scan soon afterwards. \nMany businesses run their anti-virus programs at some scheduled time each night (e.g., midnight) and schedule a \nvirus scan to run about half an hour later (e.g., 12:30 a.m.); then they run their anti-spyware software (e.g., 2:30 a.m.) \nand run a full system scan (e.g., 3:00 a.m.). This assumes that you have an always-on, high-speed connection to the \nInternet. Regardless of the actual times for",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "at you have an always-on, high-speed connection to the \nInternet. Regardless of the actual times for the updates and scans, schedule them so that only one activity is taking \nplace at any given time.\nIf your employees do any work from home using their own computers or personal devices, obtain copies of your \nbusiness anti-malware software for those systems or require your employees to use anti-virus and anti-spyware \nsoftware. \nYou may want to consider using two different anti-virus solutions fr",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "us and anti-spyware \nsoftware. \nYou may want to consider using two different anti-virus solutions from different vendors. This can improve the \nchances a virus will be detected. Often, routers, firewalls and IDPSs will have some anti-virus capabilities, but these \nshould not be exclusively relied upon to protect the network.\n34% of all documented \ncyberattacks targeted \nmanufacturers.\nSource: Global Threat Intelligence Center 2017 Q2 Threat \nIntelligence Report, NTT Security",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "al Threat Intelligence Center 2017 Q2 Threat \nIntelligence Report, NTT Security",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 17
+  },
+  {
+    "text": "16\n  Maintain and monitor logs\nProtection/detection hardware or software (e.g., firewalls, anti-virus software) often has the capability of keeping \na log of activity. Ensure this function is enabled — you may want to check the operating manual for instructions \non how to do this. Logs can be used to identify suspicious activity and may be valuable in case of an investigation. \nLogs should be backed up and saved for at least a year and some types of information may need to be stored for a \nminim",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 18
+  },
+  {
+    "text": "ed up and saved for at least a year and some types of information may need to be stored for a \nminimum of six years.\nYou may want to consider having a cybersecurity professional review the logs for any unusual or unwanted trends, \nsuch as a large use of social media websites or an unusual number of viruses consistently found on a computer. \nThese trends may indicate a more serious problem or signal the need for stronger protections.\nLogs should be backed up and saved for at least one year and \ns",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 18
+  },
+  {
+    "text": "l the need for stronger protections.\nLogs should be backed up and saved for at least one year and \nsome types of information may need to be stored for a minimum \nof six years.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 18
+  },
+  {
+    "text": "RESPOND\nThe Respond Function helps contain or reduce the impact of an event.\nDevelop a plan for disasters and information security incidents\nDevelop a plan for what immediate actions you will take in case of a fire, medical emergency, burglary or natural \ndisaster. The following section highlights elements that should be included in the plan.\nRoles and \nresponsibilities. \nWhat to do with \nyour information \nand information \nsystems in case of \nan incident. \nWho makes the decision to initiate \nrec",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 19
+  },
+  {
+    "text": "ormation \nand information \nsystems in case of \nan incident. \nWho makes the decision to initiate \nrecovery procedures and who will be the \ncontact with appropriate law enforcement \npersonnel. \nThis includes actions such as shutting down \nor locking computers, moving to a backup \nsite and physically removing important \ndocuments.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 19
+  },
+  {
+    "text": "This should include how and when to \ncontact senior executives, emergency \npersonnel, cybersecurity professionals, legal \nprofessionals, service providers or insurance \nproviders. Be sure to include relevant contact \ninformation in the plan.\nMany states have “notification laws,” \nrequiring you to notify customers if there \nis a possibility any of their information was \nstolen, disclosed or otherwise lost.\nMake sure you know the laws for \nyour local area and include relevant \ninformation in your",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 20
+  },
+  {
+    "text": "se lost.\nMake sure you know the laws for \nyour local area and include relevant \ninformation in your plans.\nInclude when to notify appropriate \nauthorities. If there is a possibility that any \npersonal information, intellectual property \nor other sensitive information was stolen, \nyou should contact your local police \ndepartment to file a report. In addition, you \nmay want to contact your local FBI office. \nWho to call in case\nof an incident. \nTypes of activities \nthat constitute an \ninformation",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 20
+  },
+  {
+    "text": "office. \nWho to call in case\nof an incident. \nTypes of activities \nthat constitute an \ninformation security \nincident. \nThis should include activities such as \nyour SMM firm’s website being down for \nmore than a certain length of time or \nevidence of information being stolen.\nYou may want to consider developing \nprocedures for each job role describing \nexactly what the employee in that role \nwill be expected to do if there is an \nincident or emergency.\n18",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 20
+  },
+  {
+    "text": "be expected to do if there is an \nincident or emergency.\n18",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 20
+  },
+  {
+    "text": "19\nRECOVER\n \nThe Recover Function helps an organization resume normal operations \nafter an event.\nMake full backups of important business data/information\n\nConduct a full, encrypted backup of the data on each computer and mobile device used in your SMM firm at least \nonce a month, shortly after a complete virus scan. Store these backups away from your office location in a protected \nplace so that if something happens to your office — such as a fire, flood, tornado or theft — your data is safe. S",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "if something happens to your office — such as a fire, flood, tornado or theft — your data is safe. Save a \ncopy of your encryption password or key in a secure location, separate from where your backups are stored.\nBackups will let you restore your data in case a computer breaks, an employee makes a mistake or a malicious \nprogram infects your system. Without data backups, you may have to recreate your business information manually \n(e.g., from paper records). Data that you should backup includes",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "your business information manually \n(e.g., from paper records). Data that you should backup includes, but is not limited to, word processing \ndocuments, electronic spreadsheets, databases, financial files, human resources files, accounts receivable/\npayable files, system logs and other information used in or generated by your SMM firm. Back up only your \ndata, not the software applications themselves.\nYou can easily store backups on removable media, such as an external USB hard drive or online u",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "ves.\nYou can easily store backups on removable media, such as an external USB hard drive or online using a Cloud \nService Provider (CSP). If you choose to store your data online, do your due diligence when selecting a CSP. It is \nrecommended that you encrypt all data prior to storing it in the Cloud.\nIf you use a hard drive, ensure it is large enough to hold all your monthly backups for a year. It is helpful to create \na separate folder for each of your computers. When you connect the external d",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "is helpful to create \na separate folder for each of your computers. When you connect the external disk to your computer to make your \nbackups, copy your data into the appropriate designated folder. \nTest your backups immediately after generating them to ensure the backup was successful and you can restore the \ndata if necessary. \nMake improvements to processes, procedures and technologies\nRegularly assess your processes, procedures and technology solutions according to your risks. Make correcti",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "ly assess your processes, procedures and technology solutions according to your risks. Make corrections \nand improvements as necessary.  You may want to consider conducting training or table-top exercises, which \nsimulate or run-through a major event scenario to identify potential weaknesses in your processes, procedures, \ntechnology or personnel readiness. Make corrections as needed.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 21
+  },
+  {
+    "text": "20\nMake incremental backups of important business data/\ninformation\nConduct an automatic incremental or differential backup of each of your company’s computers and mobile devices \nat least once a week. This type of backup only records any changes made since the last backup. In some cases, it \nmay be prudent to conduct backups every day or every hour depending on how much information is changed \nor generated in that time and the potential impact of losing that information. Many security software",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "generated in that time and the potential impact of losing that information. Many security software suites offer \nautomated backup functions that will do this on a regular schedule for you. \nIn general, the storage device should have enough capacity to hold data for 52 weekly backups, so its size should \nbe about 52 times the amount of data that you have. \nConsider cyber insurance\nCyber insurance is similar to other types of insurance, such as flood or fire insurance, that you may have for your",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "is similar to other types of insurance, such as flood or fire insurance, that you may have for your SMM \nfirm. Cyber insurance may help you respond to and recover from a security incident. In some cases, cyber insurance \ncompanies may also provide cybersecurity expertise and help you identify where you are vulnerable, what kinds of \nactions you need to take to protect your systems and help you investigate an incident and report it to appropriate \nauthorities.\nAs you might, with any type of insur",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "estigate an incident and report it to appropriate \nauthorities.\nAs you might, with any type of insurance, perform due-diligence when considering cyber insurance. Determine your \nrisks before purchasing a policy. Research the company offering protection, the services they provide, the type of \nevents they cover, ensure that they have a good reputation and will be able to meet their contractual agreement. \nBackups should be stored on:\n•\t\nremovable media, such as an external USB hard drive;\n•\t\na se",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "ement. \nBackups should be stored on:\n•\t\nremovable media, such as an external USB hard drive;\n•\t\na separate server that is isolated from the network, or \n•\t\nonline storage, such as via a CSP.\nRemember, this should be done for each of your computers and mobile devices. You may choose to store your \nbackups in multiple locations (e.g., one in the office, one in a safety deposit box across town and one in the Cloud). \nThis provides additional security in case one of the backups becomes destroyed.\nPe",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "e in the Cloud). \nThis provides additional security in case one of the backups becomes destroyed.\nPeriodically test your backed-up data to ensure that you can read it reliably. If you don’t test your backups, you will \nhave no grounds for confidence that you can use them in the event of a disaster or security incident.\nYou may want to consider encrypting your backups. Many software applications will allow you to encrypt your \nbackups. This provides an added layer of security and is important if",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "ll allow you to encrypt your \nbackups. This provides an added layer of security and is important if your backups contain any sensitive personal \nor business information. Make sure to keep a copy of your encryption password or key in a secure location separate \nfrom where you keep your backups.",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 22
+  },
+  {
+    "text": "21\nNIST Cybersecurity Framework Steps\n1. Identify\nIdentify and control who has access to business information\nConduct background checks \nRequire individual user accounts for each employee\nCreate policies and procedures for cybersecurity\n2. Protect\nTrain employees and limit employee access to data \nInstall surge protectors and uninterruptible power supplies \nPatch operating systems and applications routinely\nSecure wireless access points and networks\nUse encryption for sensitive information\nDispo",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 23
+  },
+  {
+    "text": "routinely\nSecure wireless access points and networks\nUse encryption for sensitive information\nDispose of old computers and media safely\n3. Detect\nInstall and update anti-virus, anti-spyware, and other    \n \nanti-malware programs\nMaintain and monitor logs\nNote unusual password activity\n4. Respond\nDevelop and maintain a plan for disasters and cyber incidents\nNotify your customers and the authorities  \n5. Recover\nMake full backups of important business data and information\nSchedule incremental bac",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 23
+  },
+  {
+    "text": "s  \n5. Recover\nMake full backups of important business data and information\nSchedule incremental backups \nImprove processes, procedures, and technologies\n21",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 23
+  },
+  {
+    "text": "THE MEP NATIONAL NETWORK\nThe MEP National Network is a unique public-private \npartnership that delivers comprehensive, proven \nsolutions to U.S. manufacturers, fueling growth and \nadvancing U.S. manufacturing.\nW W W . N I S T . G O V / M E P / M E P - N A T I O N A L - N E T W O R K . C O M\n100 Bureau Drive, Stop 4800\nGaithersburg, MD 20899\n\n\n301.975.5020\npatricia.toth@nist.gov",
+    "source": "mepnn_cybersecurity_guide_10919-508.pdf",
+    "page": 24
+  }
+]

@@ -1,16 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { sendChat, ChatResponse } from "@/lib/api";
+import { useRef, useState } from "react";
+import { sendChat, queryRag, uploadDocuments, ChatResponse, RagChunk } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Panel } from "@/components/ui/panel";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Paperclip } from "lucide-react";
 
 interface Turn {
   role: "user" | "assistant";
   content: string;
   router?: ChatResponse["router"];
+  sources?: RagChunk[];
   error?: string;
 }
 
@@ -18,6 +19,9 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function submit() {
     const message = input.trim();
@@ -26,8 +30,13 @@ export function ChatPanel() {
     setInput("");
     setTurns((t) => [...t, { role: "user", content: message }]);
     setPending(true);
+    setStatus("Searching knowledge base…");
 
-    const res = await sendChat(message);
+    const rag = await queryRag(message);
+    const chunks = rag.context ?? [];
+
+    setStatus("Routing and running…");
+    const res = await sendChat(message, chunks);
 
     setTurns((t) => [
       ...t,
@@ -37,9 +46,36 @@ export function ChatPanel() {
             role: "assistant",
             content: res.choices?.[0]?.message?.content ?? "",
             router: res.router,
+            sources: chunks,
           },
     ]);
     setPending(false);
+    setStatus(null);
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow re-selecting the same file later
+    if (files.length === 0) return;
+
+    setUploading(true);
+    setStatus(`Uploading ${files.length} file${files.length > 1 ? "s" : ""}…`);
+
+    const res = await uploadDocuments(files);
+
+    setUploading(false);
+    setStatus(null);
+    setTurns((t) => [
+      ...t,
+      res.error
+        ? { role: "assistant", content: "", error: res.detail ?? res.error }
+        : {
+            role: "assistant",
+            content: `Added to the knowledge base: ${files.map((f) => f.name).join(", ")}${
+              res.chunks ? ` (${res.chunks} chunks indexed)` : ""
+            }.`,
+          },
+    ]);
   }
 
   return (
@@ -92,13 +128,27 @@ export function ChatPanel() {
                           </div>
                         </Panel>
                       )}
+                      {t.sources && t.sources.length > 0 && (
+                        <Panel className="mt-1.5">
+                          <div className="px-3 py-2 text-xs text-muted">
+                            Grounded in:
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 border-t border-border px-3 py-2">
+                            {t.sources.map((s, idx) => (
+                              <Badge key={idx} tone="amber">
+                                {s.source}
+                              </Badge>
+                            ))}
+                          </div>
+                        </Panel>
+                      )}
                     </>
                   )}
                 </div>
               )
             )}
-            {pending && (
-              <div className="text-xs text-muted">Routing and running…</div>
+            {(pending || uploading) && (
+              <div className="text-xs text-muted">{status}</div>
             )}
           </div>
         )}
@@ -106,6 +156,22 @@ export function ChatPanel() {
 
       <div className="border-t border-border px-6 py-4">
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+          <Button
+            variant="ghost"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || pending}
+            title="Add files to the knowledge base"
+          >
+            <Paperclip className="h-4 w-4" strokeWidth={2} />
+          </Button>
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}

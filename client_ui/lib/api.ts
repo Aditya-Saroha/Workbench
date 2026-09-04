@@ -120,3 +120,12 @@ export async function uploadDocuments(files: File[]): Promise<IngestResponse> {
     return { error: "network_error", detail: String(err) };
   }
 }
+
+export async function listDocuments(): Promise<{ files?: string[]; error?: string; detail?: string }> {
+  try {
+    const res = await fetch("/api/documents");
+    return await res.json();
+  } catch {
+    return { error: "network_error" };
+  }
+}

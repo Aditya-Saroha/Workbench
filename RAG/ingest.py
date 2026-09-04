@@ -175,6 +175,12 @@ def chunk_text(
     Split a block of text into overlapping chunks of roughly `chunk_size`
     characters.  Each chunk inherits the source filename and page number.
     """
+
+    if chunk_overlap >= chunk_size:
+        raise ValueError(
+            f"chunk_overlap ({chunk_overlap}) must be smaller than chunk_size ({chunk_size})"
+        )
+    
     chunks = []
     start = 0
     text_len = len(text)

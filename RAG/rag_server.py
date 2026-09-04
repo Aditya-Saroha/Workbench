@@ -1,22 +1,16 @@
-# Drop this file into your `rag/` folder (alongside rag.py) and run it with:
-#   pip install fastapi uvicorn
-#   uvicorn rag_server:app --port 8000
-#
-# This exposes your existing query_rag() / ingest_documents() functions
-# over HTTP so the Next.js UI (or your future agent loop) can call them
-# the same way it calls the router — no direct Python imports needed
-# outside this process.
+import os
+import shutil
+from typing import List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from rag import ingest_documents, query_rag
+from config import DOCUMENTS_DIR
 
 app = FastAPI(title="MRPL RAG Service")
 
-# Next.js dev server runs on :3000; loosen this once you know your
-# deployment origin(s).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -29,15 +23,24 @@ class QueryRequest(BaseModel):
     query: str
     top_k: int = 5
 
-
-class IngestRequest(BaseModel):
-    directory: str = "documents/"
-
-
 @app.post("/ingest")
-def ingest(req: IngestRequest):
-    count = ingest_documents(req.directory)
-    return {"chunks_indexed": count}
+async def ingest(files: List[UploadFile] = File(...)):
+    os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+
+    saved = []
+
+    SUPPORTED_EXTS = (".pdf", ".docx", ".xlsx")
+
+    for f in files:
+        if not f.filename.lower().endswith(SUPPORTED_EXTS):
+            continue  # or raise HTTPException(400, f"Unsupported file type: {f.filename}")
+        dest = os.path.join(DOCUMENTS_DIR, f.filename)
+        with open(dest, "wb") as out:
+            shutil.copyfileobj(f.file, out)
+        saved.append(f.filename)
+
+    count = ingest_documents(DOCUMENTS_DIR)
+    return {"files_saved": saved, "chunks_indexed": count}
 
 
 @app.post("/query")
@@ -48,3 +51,13 @@ def query(req: QueryRequest):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/documents")
+def list_documents():
+    if not os.path.isdir(DOCUMENTS_DIR):
+        return {"files": []}
+    files = sorted(
+        f for f in os.listdir(DOCUMENTS_DIR)
+        if f.lower().endswith((".pdf", ".docx", ".xlsx"))
+    )
+    return {"files": files}

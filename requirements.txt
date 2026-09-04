@@ -1,9 +1,0 @@
-# ─── Phase 1: PDF extraction & chunking ───
-pymupdf>=1.24.0
-
-# ─── Phase 2: Embeddings & vector search (install now, used next) ───
-sentence-transformers>=3.0.0
-faiss-cpu>=1.8.0
-
-# ─── Phase 4: Hybrid retrieval / reranking ───
-rank-bm25>=0.2.2

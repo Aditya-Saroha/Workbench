@@ -1,0 +1,114 @@
+server:
+  nodeId: ryzen-local
+  host: 127.0.0.1
+  port: 11435
+  basePath: /
+  requestBodyLimit: 8mb
+  https:
+    enabled: false
+    certPath:
+    keyPath:
+    caPath:
+
+ollama:
+  baseUrl: http://127.0.0.1:11434
+  openAiCompatiblePath: /v1/chat/completions
+  nativeApiBasePath: /api
+  keepAlive: 10m
+  requestTimeoutMs: 300000   # generous — CPU inference is slower, don't time out mid-response
+
+gpu:
+  provider: none
+  name: "CPU only (Ryzen 5 5500U integrated graphics, no dedicated GPU)"
+  vramTotalMb: 0
+  vramSafetyReserveMb: 0
+  maxGpuUtilizationPct: 100   # harmless placeholder — irrelevant with provider: none
+  requireGpuOnlyByDefault: false
+  monitor:
+    enabled: false
+    intervalMs: 5000
+    nvidiaSmiPath: nvidia-smi
+
+router:
+  defaultMode: auto
+  syncMaxQueueTimeMs: 250
+  heavyLoadQueueDepth: 1              # low — one CPU-bound request already counts as load
+  heavyLoadGpuFreeMbThreshold: 0      # unused with gpu.provider: none
+  defaultTaskType: unknown
+  classification:
+    mode: heuristic
+    classifierTimeoutMs: 1500
+
+jobs:
+  store: memory
+  resultTtlSeconds: 86400
+  maxAttempts: 2
+  cleanupIntervalMs: 60000
+
+models:
+  - name: smollm2:360m
+    sizeGb: 0.75
+    purpose: [triage, simple_chat, classification]
+    priority: 40
+    maxConcurrent: 1
+    defaultContext: 2048
+    maxContext: 4096
+    timeoutMs: 60000
+    costClass: low
+    exclusive: false
+    allowWhenBusy: true
+
+  - name: qwen2.5:0.5b
+    sizeGb: 0.5
+    purpose: [simple_chat, summarize]
+    priority: 35
+    maxConcurrent: 1
+    defaultContext: 2048
+    maxContext: 4096
+    timeoutMs: 60000
+    costClass: low
+    exclusive: false
+    allowWhenBusy: true
+
+  - name: qwen2.5-coder:1.5b
+    sizeGb: 1.0
+    purpose: [code_generate, code_review, code_fix, tool_use]
+    priority: 60
+    maxConcurrent: 1
+    defaultContext: 4096
+    maxContext: 8192
+    timeoutMs: 120000
+    costClass: low
+    exclusive: false
+    allowWhenBusy: true
+
+  - name: qwen2.5-coder:7b
+    sizeGb: 4.7
+    purpose: [code_generate, code_review, code_fix, agentic_reasoning, large_context]
+    priority: 50            # lower than the 1.5b — fast model wins by default on this hardware
+    maxConcurrent: 1
+    defaultContext: 4096
+    maxContext: 8192
+    timeoutMs: 300000       # 5 min — CPU inference on a 7B model can be genuinely slow
+    costClass: high
+    exclusive: true         # don't let it share the CPU/RAM budget with anything else
+    allowWhenBusy: false
+
+routes:
+  triage: [smollm2:360m]
+  simple_chat: [smollm2:360m, qwen2.5:0.5b]
+  summarize: [qwen2.5:0.5b]
+  code_generate: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
+  code_review: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
+  code_fix: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
+  agentic_reasoning: [qwen2.5-coder:7b]
+  large_context: [qwen2.5-coder:7b]
+  tool_use: [qwen2.5-coder:1.5b]
+  unknown: [smollm2:360m]
+
+queue:
+  globalMaxConcurrent: 1     # one request at a time — no headroom for parallel CPU inference
+  globalMaxQueued: 50
+  perUserMaxQueued: 10
+  defaultPriority: normal
+  timeoutMs: 300000

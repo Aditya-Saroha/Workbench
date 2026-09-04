@@ -61,7 +61,7 @@ def build_index(chunks: list[dict]) -> faiss.Index:
 
     # Save metadata (everything except "text" is small; we save full chunks
     # so retrieval can return source, page, AND text without re-reading PDFs)
-    with open(META_PATH, "w") as f:
+    with open(META_PATH, "w", encoding="utf-8") as f:
         json.dump(chunks, f, indent=2, ensure_ascii=False)
     print(f"💾 Metadata saved to {META_PATH}")
 
@@ -92,7 +92,7 @@ def load_index() -> tuple[faiss.Index, list[dict]]:
         )
 
     index = faiss.read_index(INDEX_PATH)
-    with open(META_PATH, "r") as f:
+    with open(META_PATH, "r", encoding="utf-8") as f:
         chunks_meta = json.load(f)
 
     print(f"📂 Loaded FAISS index: {index.ntotal} vectors")
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     """
     # Load chunks from Phase 1
     chunks_path = os.path.join(DATA_DIR, "chunks.json")
-    with open(chunks_path, "r") as f:
+    with open(chunks_path, "r", encoding="utf-8") as f:
         chunks = json.load(f)
 
     # Build and save

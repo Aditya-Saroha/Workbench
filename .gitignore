@@ -2,3 +2,7 @@ RAG/.venv/
     *.*
 
 RAG/__pycache__/
+
+client_ui/node_modules
+client_ui/.next
+client_ui/.env*.local

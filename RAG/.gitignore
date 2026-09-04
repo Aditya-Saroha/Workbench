@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# RAG generated indexes / runtime data
+data/*.index
+data/*.pkl
+data/chunks.json
+data/chunks_meta.json
+
+# Test artifacts
+test_eval_docs/
+test_docs_temp/
+tests/__pycache__/
+
+# IDE
+.vscode/
+.idea/

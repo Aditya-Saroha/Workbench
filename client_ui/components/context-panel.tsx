@@ -1,15 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { queryRag, RagResponse } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { queryRag, listDocuments, RagResponse } from "@/lib/api";
 import { Panel, PanelHeader } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
-import { FileText } from "lucide-react";
+import { FileText, File } from "lucide-react";
 
 export function ContextPanel() {
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<RagResponse | null>(null);
   const [pending, setPending] = useState(false);
+  const [files, setFiles] = useState<string[]>([]);
+  const [filesError, setFilesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    refreshFiles();
+  }, []);
+
+  async function refreshFiles() {
+    const res = await listDocuments();
+    if (res.error) {
+      setFilesError(res.detail ?? res.error);
+    } else {
+      setFiles(res.files ?? []);
+      setFilesError(null);
+    }
+  }
 
   async function submit() {
     if (!query.trim() || pending) return;
@@ -22,6 +38,26 @@ export function ContextPanel() {
     <div className="flex h-full w-80 flex-col">
       <Panel className="flex h-full flex-col">
         <PanelHeader>Knowledge base</PanelHeader>
+
+        <div className="border-b border-border px-3 py-2.5">
+          <div className="mb-1.5 flex items-center justify-between font-mono text-[11px] text-muted">
+            <span>{files.length} document{files.length === 1 ? "" : "s"}</span>
+          </div>
+          {filesError ? (
+            <div className="text-xs text-brick">{filesError}</div>
+          ) : files.length === 0 ? (
+            <div className="text-xs text-muted">No documents ingested yet.</div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              {files.map((f) => (
+                <div key={f} className="flex items-center gap-1.5 text-xs text-text/80">
+                  <File className="h-3 w-3 shrink-0" strokeWidth={1.75} />
+                  <span className="truncate">{f}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="flex gap-1.5 border-b border-border px-3 py-2.5">
           <input

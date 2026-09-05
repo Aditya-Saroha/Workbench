@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const RAG_URL = process.env.RAG_URL ?? "http://127.0.0.1:8000";
+const RAG_URL = process.env.RAG_URL ?? "http://127.0.0.1:8081";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       {
         error: "Could not reach the RAG service",
         detail:
-          "Is `uvicorn rag_server:app --port 8000` running from your rag/ folder?",
+          "Is `uvicorn rag_server:app --port 8081` running from your rag/ folder?",
       },
       { status: 502 }
     );

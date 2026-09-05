@@ -6,3 +6,21 @@ RAG/__pycache__/
 client_ui/node_modules
 client_ui/.next
 client_ui/.env*.local
+
+
+cat >> .gitignore <<'EOF'
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+logs/
+
+# Local RAG documents
+RAG/documents/*
+EOF

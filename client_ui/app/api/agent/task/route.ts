@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   try {
-    const res = await fetch(`${ORCHESTRATOR_URL}/api/task`, {
+    const res = await fetch(`${ORCHESTRATOR_URL}/api/agent/task`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),

@@ -1,86 +1,31 @@
-set -uo pipefail
+#!/usr/bin/env bash
+# start-dev.sh — launches all 4 services, each in its own Terminal.app window.
+#
+# Usage: run this from your project root (e.g. ~/Workbench):
+#   ./start-dev.sh
+#
+# Adjust VENV_ACTIVATE below if your virtualenv lives somewhere other than
+# <project-root>/.venv, or set it to "" if you don't use one.
 
-# --- Config ------------------------------------------------------------
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="ollama-agent-router.yaml"
-CLIENT_DIR="client_ui"
-RAG_DIR="RAG"
-RAG_PORT=8080
-LOG_DIR="${ROOT_DIR}/logs"
+set -euo pipefail
 
-mkdir -p "${LOG_DIR}"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_ACTIVATE="source '$PROJECT_ROOT/.venv/bin/activate' && "
 
-ROUTER_LOG="${LOG_DIR}/router.log"
-CLIENT_LOG="${LOG_DIR}/client_ui.log"
-RAG_LOG="${LOG_DIR}/rag_server.log"
-
-PIDS=()
-
-log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$1"; }
-warn() { printf '\033[1;33mWARN:\033[0m %s\n' "$1"; }
-die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$1"; exit 1; }
-
-# --- Sanity checks -------------------------------------------------------
-[[ -f "${ROOT_DIR}/${CONFIG_FILE}" ]] || die "Config not found: ${ROOT_DIR}/${CONFIG_FILE}"
-[[ -d "${ROOT_DIR}/${CLIENT_DIR}" ]]   || die "Directory not found: ${ROOT_DIR}/${CLIENT_DIR}"
-[[ -d "${ROOT_DIR}/${RAG_DIR}" ]]      || die "Directory not found: ${ROOT_DIR}/${RAG_DIR}"
-
-command -v ollama-agent-router >/dev/null 2>&1 || die "'ollama-agent-router' not found on PATH."
-command -v npm >/dev/null 2>&1 || die "'npm' not found on PATH."
-command -v uvicorn >/dev/null 2>&1 || die "'uvicorn' not found on PATH."
-
-# --- Cleanup on exit -------------------------------------------------------
-cleanup() {
-  log "Shutting down..."
-  for pid in "${PIDS[@]:-}"; do
-    if kill -0 "${pid}" 2>/dev/null; then
-      kill "${pid}" 2>/dev/null
-    fi
-  done
-  wait 2>/dev/null
-  log "All services stopped."
+run_in_new_window() {
+  local title="$1"
+  local cmd="$2"
+  osascript <<EOF
+tell application "Terminal"
+  activate
+  do script "cd '$PROJECT_ROOT' && echo '--- $title ---' && $cmd"
+end tell
+EOF
 }
-trap cleanup EXIT INT TERM
 
-# --- 1. Router -------------------------------------------------------------
-log "Starting ollama-agent-router (config: ${CONFIG_FILE})..."
-(
-  cd "${ROOT_DIR}"
-  ollama-agent-router serve --config "${CONFIG_FILE}"
-) > "${ROUTER_LOG}" 2>&1 &
-PIDS+=($!)
+run_in_new_window "client_ui"      "cd client_ui && npm run dev"
+run_in_new_window "orchestrator"   "${VENV_ACTIVATE}uvicorn orchestrator.main:app --port 8001 --reload"
+run_in_new_window "RAG service"    "cd RAG && ${VENV_ACTIVATE}uvicorn rag_server:app --port 8000"
+run_in_new_window "router"         "${VENV_ACTIVATE}ollama-agent-router serve --config ollama-agent-router.yaml"
 
-# --- 2. Client UI ------------------------------------------------------------
-log "Starting client_ui (npm run dev)..."
-(
-  cd "${ROOT_DIR}/${CLIENT_DIR}"
-  npm run dev
-) > "${CLIENT_LOG}" 2>&1 &
-PIDS+=($!)
-
-# --- 3. RAG server -----------------------------------------------------------
-log "Starting RAG server (uvicorn rag_server:app --port ${RAG_PORT})..."
-(
-  cd "${ROOT_DIR}/${RAG_DIR}"
-  uvicorn rag_server:app --port "${RAG_PORT}"
-) > "${RAG_LOG}" 2>&1 &
-PIDS+=($!)
-
-log "All services launching. PIDs: ${PIDS[*]}"
-log "Logs: ${LOG_DIR}/{router,client_ui,rag_server}.log"
-log "Press Ctrl-C to stop everything."
-
-# --- Tail all logs together, and exit if any process dies early ------------
-tail -n 0 -f "${ROUTER_LOG}" "${CLIENT_LOG}" "${RAG_LOG}" &
-TAIL_PID=$!
-PIDS+=("${TAIL_PID}")
-
-while true; do
-  for pid in "${PIDS[@]}"; do
-    if [[ "${pid}" != "${TAIL_PID}" ]] && ! kill -0 "${pid}" 2>/dev/null; then
-      warn "A service (PID ${pid}) exited. Check logs in ${LOG_DIR}."
-      exit 1
-    fi
-  done
-  sleep 2
-done
+echo "Launched 4 Terminal windows: client_ui, orchestrator, RAG service, router."

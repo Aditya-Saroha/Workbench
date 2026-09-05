@@ -129,3 +129,22 @@ export async function listDocuments(): Promise<{ files?: string[]; error?: strin
     return { error: "network_error" };
   }
 }
+
+export async function deleteDocument(
+  filename: string
+): Promise<{ error?: string; detail?: string }> {
+  try {
+    const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, {
+      method: "DELETE",
+    });
+ 
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { error: `Delete failed (${res.status})`, detail: body.detail };
+    }
+    return {};
+  } catch {
+    return { error: "Could not reach the server" };
+  }
+}
+ 

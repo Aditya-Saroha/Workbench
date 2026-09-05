@@ -7,3 +7,10 @@ faiss-cpu>=1.8.0
 
 # ─── Phase 4: Hybrid retrieval / reranking ───
 rank-bm25>=0.2.2
+
+uvicorn
+fastapi
+python-docx
+python-multipart
+pandas
+pillow

@@ -2,10 +2,18 @@ RAG/.venv/
     *.*
 
 RAG/__pycache__/
+RAG/documents/
+RAG/data/
+
 
 client_ui/node_modules
 client_ui/.next
 client_ui/.env*.local
+
+orchestrator/__pycache__/
+
+.venv/
+
 
 
 cat >> .gitignore <<'EOF'

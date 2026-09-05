@@ -16,6 +16,12 @@ except ImportError as e:
     print(f"Warning: Could not import query_rag. Error: {e}")
     query_rag = None
 
+# agent.py and main.py both import this name — it went missing when
+# direct_chat's model got hardcoded inline below, which is what sent an
+# IDE auto-import hunting through the rest of the workspace and landing on
+# a stale copy in save_from_git/.
+DIRECT_CHAT_MODEL = "qwen3:4b"
+
 # Add project root for sandbox package (root_dir already computed above)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
@@ -40,7 +46,7 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:
         if not isinstance(prompt, str) or not prompt.strip():
             return "Error: No valid 'prompt' provided to direct_chat tool."
             
-        payload = json.dumps({"model": "llama3.2:1b", "prompt": prompt, "stream": False}).encode("utf-8")
+        payload = json.dumps({"model": DIRECT_CHAT_MODEL, "prompt": prompt, "stream": False}).encode("utf-8")
         req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=payload, headers={"Content-Type": "application/json"})
         
         try:

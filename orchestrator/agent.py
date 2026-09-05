@@ -1,20 +1,47 @@
 import json
 import httpx
 import re
+import asyncio
 from typing import Dict, Any
 from .models import AgentState, PlanStep
-from .tools import execute_tool
-
-# Change this:
-# OLLAMA_URL = "http://localhost:11434/api/generate"
-
-# To this explicitly:
-# agent.py
-import asyncio
-
+from .tools import execute_tool, DIRECT_CHAT_MODEL
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-PLANNER_MODEL = "llama3.2:1b" # Change to your chosen router model
+
+# Split into two models rather than one:
+# - TRIAGE_MODEL: near-instant SIMPLE/COMPLEX classification. Small and fast.
+# - PLANNER_MODEL: generates the JSON plan and evaluates each step's output.
+#   This is the model that actually needs reliable structured/tool-call
+#   output — a weak model here (e.g. llama3.2:1b) is what caused the
+#   PlanStep(**str) crash originally. Qwen3's dense models were trained with
+#   native tool-calling support, which is why this replaces llama3.2:1b.
+TRIAGE_MODEL = "qwen3:0.6b"
+PLANNER_MODEL = "qwen3:8b"
+
+# TRIAGE_MODEL is fast but unreliable on short, imperative requests that
+# name a tool directly — e.g. "run echo hello in sandbox" got classified
+# SIMPLE, so direct_chat answered *about* running the command instead of
+# python_sandbox actually running it. Anything that clearly names one of
+# the four real tools skips the LLM guess entirely and goes straight to
+# the planner. This is deliberately a plain substring check, not a model
+# call — it should be true more often on a false positive (an unnecessary
+# planner run) than a false negative (silently answering instead of using
+# a tool).
+COMPLEX_KEYWORDS = (
+    "sandbox", "python_sandbox", "run this code", "run the code",
+    "execute this code", "execute the code", "run a script", "run script",
+    "write_docx", "write a docx", "generate a docx", "generate a doc",
+    "generate a report", "generate a word document",
+    "search_rag", "search my documents", "search the documents",
+    "search the knowledge base", "search my knowledge base",
+    "read_file", "read the file", "read this file", "read the document",
+)
+
+
+def _looks_complex(prompt: str) -> bool:
+    lower = prompt.lower()
+    return any(kw in lower for kw in COMPLEX_KEYWORDS)
+
 
 def log_trace(state: AgentState, source: str, message: str):
     """Appends a timestamped log entry to the agent's state for the UI to stream."""
@@ -24,6 +51,7 @@ def log_trace(state: AgentState, source: str, message: str):
         "source": source,
         "message": message
     })
+
 
 async def call_ollama(
     prompt: str,
@@ -36,84 +64,158 @@ async def call_ollama(
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "keep_alive": -1,
+        "keep_alive": "3m",  # matches router config; avoid two models resident at once on 16GB
     }
     if format:
         payload["format"] = format
     if options:
         payload["options"] = options
 
-    # Shorter, per-call timeout: routing/classification should be near-instant,
-    # while planning/generation legitimately needs longer. Passing a small
-    # read_timeout for routing means a hung/queued call fails fast and shows
-    # up in the trace instead of looking permanently "stuck".
     timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(OLLAMA_URL, json=payload)
         response.raise_for_status()
         return response.json()["response"]
 
+
 def extract_json_from_llm(text: str) -> list:
-    """Safely extract JSON array from LLM output, ignoring markdown fences."""
+    """
+    Safely extract a JSON array from LLM output, ignoring markdown fences.
+    Handles the common failure modes of wrapping the array in an object
+    (e.g. {"plan": [...]}) or returning a single object instead of a list.
+    """
     try:
         match = re.search(r'\[.*\]', text, re.DOTALL)
         if match:
-            return json.loads(match.group(0))
-        return json.loads(text)
+            parsed = json.loads(match.group(0))
+        else:
+            parsed = json.loads(text)
     except json.JSONDecodeError:
         return []
 
+    if isinstance(parsed, dict):
+        for key in ("plan", "steps", "actions"):
+            if isinstance(parsed.get(key), list):
+                return parsed[key]
+        return [parsed]
+    if isinstance(parsed, list):
+        return parsed
+    return []
+
+
+def normalize_plan_steps(raw_steps: list, state: AgentState) -> list[dict]:
+    """
+    Guarantees every item handed to PlanStep(**item) is actually a dict.
+    Kept as a safety net even with a tool-calling-capable planner model.
+    """
+    normalized = []
+    for i, item in enumerate(raw_steps):
+        if isinstance(item, str):
+            try:
+                parsed = json.loads(item)
+            except json.JSONDecodeError:
+                parsed = None
+
+            if isinstance(parsed, dict):
+                item = parsed
+            else:
+                log_trace(
+                    state, "Planner",
+                    f"Step {i} came back as a bare string, not an object; "
+                    f"coercing into a direct_chat fallback step."
+                )
+                item = {
+                    "step_id": i + 1,
+                    "description": item,
+                    "tool_name": "direct_chat",
+                    "tool_args": {"prompt": item},
+                }
+
+        if not isinstance(item, dict):
+            log_trace(state, "Planner", f"Dropping unparseable step {i}: {item!r}")
+            continue
+
+        item.setdefault("step_id", i + 1)
+        item.setdefault("description", item.get("tool_name", "unknown step"))
+        item.setdefault("tool_args", {})
+        if "tool_name" not in item:
+            log_trace(state, "Planner", f"Dropping step {i} with no tool_name: {item!r}")
+            continue
+
+        normalized.append(item)
+
+    return normalized
+
+
 async def generate_plan(prompt: str) -> list:
-    sys_prompt = f"""You are an industrial AI planner. Break the user's request into a sequential JSON array of steps. 
+    sys_prompt = f"""You are an industrial AI planner. Break the user's request into a sequential JSON array of steps.
 Available tools: [search_rag, read_file, python_sandbox, write_docx].
 User Request: {prompt}
-Format exactly like this: [{{"step_id": 1, "description": "...", "tool_name": "...", "tool_args": {{}}}}]"""
-    
-    raw_response = await call_ollama(sys_prompt, format="json")
+Respond with ONLY a top-level JSON array, exactly like this, with no wrapping object and no stringified elements:
+[{{"step_id": 1, "description": "...", "tool_name": "...", "tool_args": {{}}}}]"""
+
+    raw_response = await call_ollama(sys_prompt, model=PLANNER_MODEL, format="json")
     return extract_json_from_llm(raw_response)
+
 
 async def evaluate_step(step: PlanStep, observation: str) -> Dict[str, Any]:
     sys_prompt = f"""You are an AI QA agent. Evaluate if the tool's output successfully accomplished the step.
 Step Goal: {step.description}
 Tool Output: {observation}
 Reply strictly in JSON: {{"passed": true/false, "reason": "..."}}"""
-    
-    raw_response = await call_ollama(sys_prompt, format="json")
+
+    raw_response = await call_ollama(sys_prompt, model=PLANNER_MODEL, format="json")
     try:
         match = re.search(r'\{.*\}', raw_response, re.DOTALL)
         if match:
             return json.loads(match.group(0))
         return json.loads(raw_response)
-    except:
+    except Exception:
         return {"passed": True, "reason": "Failed to parse critic response, assuming success."}
 
+
 async def classify_intent(prompt: str) -> str:
-    """Classifies if a prompt needs the complex agent loop or just a fast response."""
-    sys_prompt = f"""You are a routing system. Read the user's prompt and output exactly one word:
-'SIMPLE' if it's a greeting, basic question, or request that doesn't need file reading/writing.
-'COMPLEX' if it requires multiple steps, file operations, RAG search, or coding.
+    """Classifies if a prompt needs the complex agent loop or just a fast response.
+
+    Only called for prompts that _looks_complex() didn't already resolve —
+    i.e. requests that don't name a tool outright, where SIMPLE vs COMPLEX
+    is a genuine judgment call (multi-step reasoning, ambiguous phrasing).
+    """
+    sys_prompt = f"""You are a strict routing classifier for an agent that has these tools:
+- search_rag: search the user's uploaded documents
+- read_file: read a specific file
+- python_sandbox: execute code
+- write_docx: generate a Word document
+
+Output exactly one word — SIMPLE or COMPLEX — with no punctuation or explanation.
+
+COMPLEX: the request needs any of the tools above, or needs multiple steps to finish.
+SIMPLE: a greeting, opinion, or question answerable directly from general knowledge —
+no file, document, code execution, or generation involved.
+
+Examples:
+"hi" -> SIMPLE
+"what's the capital of France?" -> SIMPLE
+"can you check yesterday's numbers and email me a summary?" -> COMPLEX
+"what do you think about pineapple on pizza?" -> SIMPLE
+"pull up last quarter's report and pull out the revenue figure" -> COMPLEX
 
 User: {prompt}
 Classification:"""
 
-    # This should be a near-instant decision. Cap num_predict and pin
-    # temperature so the model can't wander off into a long ramble, and use a
-    # short read_timeout so a queued/hung call raises quickly (and gets
-    # logged) instead of sitting silently for the full 240s.
     try:
         response = await call_ollama(
             sys_prompt,
-            model=PLANNER_MODEL,
+            model=TRIAGE_MODEL,
             options={"num_predict": 8, "temperature": 0, "stop": ["\n"]},
             read_timeout=20.0,
         )
     except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as e:
-        # Ollama likely still busy/loading (e.g. from a startup prewarm still
-        # in flight) or unreachable. Default to SIMPLE rather than hanging the
-        # whole task on the router.
         raise RuntimeError(f"classify_intent: router call failed ({e})") from e
 
     return "COMPLEX" if "COMPLEX" in response.upper() else "SIMPLE"
+
+
 async def is_model_loaded(model: str = PLANNER_MODEL) -> bool:
     async with httpx.AsyncClient(timeout=5.0) as client:
         try:
@@ -123,58 +225,98 @@ async def is_model_loaded(model: str = PLANNER_MODEL) -> bool:
         except Exception:
             return False
 
+
 async def run_agent_loop(state: AgentState):
     try:
         state.status = "planning"
-        if not await is_model_loaded():
-            log_trace(state, "System", "Model not resident in VRAM — cold-loading now, typically <2 min.")
-        else:
-            log_trace(state, "System", "Routing request...")
-        
+
         if not state.plan:
-            try:
-                intent = await classify_intent(state.original_prompt)
-            except RuntimeError as e:
-                log_trace(state, "Router", f"Router call failed ({e}); defaulting to SIMPLE.")
-                intent = "SIMPLE"
+            if _looks_complex(state.original_prompt):
+                # Skips the TRIAGE_MODEL call entirely — the request already
+                # names a tool, so there's nothing genuinely ambiguous to
+                # classify.
+                log_trace(
+                    state, "Router",
+                    "Request names a specific tool (sandbox, file, RAG, or docx) — routing straight to the planner."
+                )
+                intent = "COMPLEX"
+            else:
+                if not await is_model_loaded(TRIAGE_MODEL):
+                    log_trace(state, "System", f"{TRIAGE_MODEL} not resident in memory — cold-loading now.")
+                else:
+                    log_trace(state, "System", "Routing request...")
+
+                try:
+                    intent = await classify_intent(state.original_prompt)
+                except RuntimeError as e:
+                    log_trace(state, "Router", f"Router call failed ({e}); defaulting to SIMPLE.")
+                    intent = "SIMPLE"
 
             if intent == "SIMPLE":
                 log_trace(state, "Router", "Classified as simple conversational task. Bypassing planner.")
+                # This path's actual model call is direct_chat -> DIRECT_CHAT_MODEL,
+                # not the planner model, so check/report on that one.
+                if not await is_model_loaded(DIRECT_CHAT_MODEL):
+                    log_trace(
+                        state, "System",
+                        f"{DIRECT_CHAT_MODEL} not resident in memory — cold-loading now, typically <2 min."
+                    )
                 state.plan = [
                     PlanStep(
-                        step_id=1, 
-                        description="Direct model response", 
-                        tool_name="direct_chat", 
+                        step_id=1,
+                        description="Direct model response",
+                        tool_name="direct_chat",
                         tool_args={"prompt": state.original_prompt}
                     )
                 ]
             else:
                 log_trace(state, "Router", "Classified as complex task. Engaging planner.")
+                if not await is_model_loaded(PLANNER_MODEL):
+                    log_trace(
+                        state, "System",
+                        f"{PLANNER_MODEL} not resident in memory — cold-loading now, typically <2 min."
+                    )
                 plan_data = await generate_plan(state.original_prompt)
+                plan_data = normalize_plan_steps(plan_data, state)
+
+                if not plan_data:
+                    log_trace(
+                        state, "Planner",
+                        "No valid steps could be parsed from the planner output; failing task."
+                    )
+                    state.status = "failed"
+                    return
+
                 state.plan = [PlanStep(**step) for step in plan_data]
                 log_trace(state, "Planner", f"Generated {len(state.plan)} steps.")
-        
+
         state.status = "executing"
-        
+
         # 2. EXECUTION LOOP
         while state.current_step_index < len(state.plan):
             current_step = state.plan[state.current_step_index]
             current_step.status = "running"
-            
+
             log_trace(state, "Executor", f"Executing step {current_step.step_id}: {current_step.description}")
-            
-            if current_step.tool_name == "write_docx":
+
+            # Only pause the FIRST time we reach a write_docx step. If a human
+            # has already approved it (human_approved=True, set by /resume),
+            # fall through and actually execute it instead of pausing again.
+            if current_step.tool_name == "write_docx" and not current_step.human_approved:
                 current_step.status = "human_approval"
                 state.status = "paused"
                 log_trace(state, "System", "Paused for human review.")
-                return 
-                
-            try:
+                return
 
-                observation = await asyncio.get_event_loop().run_in_executor(None, execute_tool, current_step.tool_name, current_step.tool_args)
-                log_trace(state, "Tool Output", str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation))
-                
-                # Fast-path bypasses the Critic to save time
+            try:
+                observation = await asyncio.get_event_loop().run_in_executor(
+                    None, execute_tool, current_step.tool_name, current_step.tool_args
+                )
+                log_trace(
+                    state, "Tool Output",
+                    str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation)
+                )
+
                 if current_step.tool_name == "direct_chat":
                     current_step.status = "success"
                     current_step.result = observation
@@ -182,9 +324,8 @@ async def run_agent_loop(state: AgentState):
                     state.current_step_index += 1
                     continue
 
-                # 3. CRITIC STAGE (Only for complex tasks)
                 critic_verdict = await evaluate_step(current_step, observation)
-                
+
                 if critic_verdict.get("passed", False):
                     current_step.status = "success"
                     current_step.result = observation
@@ -196,20 +337,19 @@ async def run_agent_loop(state: AgentState):
                     log_trace(state, "Critic", f"Step failed: {reason}. Halting.")
                     state.status = "failed"
                     return
-                    
+
             except Exception as e:
                 current_step.status = "failed"
                 state.status = "failed"
                 log_trace(state, "System Error", str(e))
                 return
-                
+
         if state.current_step_index >= len(state.plan):
             state.status = "completed"
-            # If the fast path was used, the deliverable is already set
             if not state.final_deliverable:
                 state.final_deliverable = "Task sequence finished."
             log_trace(state, "System", "Task complete.")
-            
+
     except Exception as e:
         state.status = "failed"
         log_trace(state, "Fatal Error", str(e))

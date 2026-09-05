@@ -6,11 +6,11 @@ import httpx
 import asyncio
 
 from .models import AgentState, TaskRequest
-from .agent import run_agent_loop, log_trace
+from .agent import run_agent_loop, log_trace, TRIAGE_MODEL, PLANNER_MODEL
+from .tools import DIRECT_CHAT_MODEL
 
 app = FastAPI(title="MRPL Agentic Workbench API")
 
-# main.py
 background_tasks: set[asyncio.Task] = set()
 
 def spawn_agent_task(coro):
@@ -21,33 +21,36 @@ def spawn_agent_task(coro):
 
 async def _prewarm_model():
     app.state.model_ready = False
-    print("Pre-warming Ollama router model into VRAM...")
-    # Bounded per-attempt timeout: a hung/loading Ollama shouldn't let this
-    # request sit open indefinitely, since that occupies Ollama's (typically
-    # single) execution slot and will make the *next* real request — the
-    # first user's routing/classification call — queue behind it and look
-    # permanently "stuck".
+    # Prewarm every model actually hit by the request path, not a single
+    # hardcoded name. classify_intent always uses TRIAGE_MODEL; the SIMPLE
+    # fast-path uses DIRECT_CHAT_MODEL; the planner/critic use PLANNER_MODEL.
+    models_to_warm = [TRIAGE_MODEL, DIRECT_CHAT_MODEL, PLANNER_MODEL]
+    print(f"Pre-warming Ollama models into memory: {models_to_warm}")
+
     timeout = httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        for attempt in range(30):  # retry for up to ~2.5 min if Ollama isn't up yet
-            try:
-                resp = await client.post(
-                    "http://127.0.0.1:11434/api/generate",
-                    json={
-                        "model": "llama3.2:1b",
-                        "prompt": "",
-                        "stream": False,
-                        "keep_alive": -1,  # -1 = never unload
-                    },
-                )
-                resp.raise_for_status()
-                app.state.model_ready = True
-                print("Model pre-warmed and pinned in VRAM.")
-                return
-            except Exception as e:
-                print(f"Ollama not ready yet ({e}), retrying in 5s...")
-                await asyncio.sleep(5)
-    print("Warning: could not confirm Ollama is ready after retries.")
+        for model in models_to_warm:
+            for attempt in range(30):  # retry for up to ~2.5 min per model if Ollama isn't up yet
+                try:
+                    resp = await client.post(
+                        "http://127.0.0.1:11434/api/generate",
+                        json={
+                            "model": model,
+                            "prompt": "",
+                            "stream": False,
+                            "keep_alive": "3m",
+                        },
+                    )
+                    resp.raise_for_status()
+                    print(f"Model pre-warmed: {model}")
+                    break
+                except Exception as e:
+                    print(f"Ollama not ready for {model} yet ({e}), retrying in 5s...")
+                    await asyncio.sleep(5)
+            else:
+                print(f"Warning: could not confirm {model} is ready after retries.")
+
+    app.state.model_ready = True
 
 
 @app.on_event("startup")
@@ -61,7 +64,7 @@ async def prewarm_model():
 # Enable CORS for the client_ui (React/Vue/etc.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict to localhost:3000 etc.
+    allow_origins=["*"],  # In production, restrict to localhost:3000 etc.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,7 +72,8 @@ app.add_middleware(
 
 # In-memory state store for the hackathon (use Redis/SQLite for production)
 active_tasks: Dict[str, AgentState] = {}
-@app.post("/api/task")
+
+@app.post("/api/agent/task")
 async def create_task(request: TaskRequest):
     new_state = AgentState(original_prompt=request.prompt)
     active_tasks[new_state.task_id] = new_state
@@ -81,7 +85,7 @@ async def get_task_trace(task_id: str):
     """Frontend polls this endpoint to update the UI trace and status."""
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     state = active_tasks[task_id]
     return {
         "status": state.status,
@@ -90,20 +94,24 @@ async def get_task_trace(task_id: str):
         "trace": state.trace_log,
         "final_deliverable": state.final_deliverable
     }
+
 @app.post("/api/agent/{task_id}/resume")
 async def resume_task(task_id: str):
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
-        
+
     state = active_tasks[task_id]
     if state.status != "paused":
         raise HTTPException(status_code=400, detail="Task is not paused.")
-        
+
+    # Mark the paused step as approved WITHOUT advancing past it or faking
+    # success. run_agent_loop's pause check ("write_docx and not
+    # human_approved") will then let this exact step fall through and
+    # actually call execute_tool this time, instead of the step being
+    # skipped entirely.
     current_step = state.plan[state.current_step_index]
-    current_step.status = "success"
+    current_step.human_approved = True
     log_trace(state, "System", "Human approval received. Resuming...")
-    state.current_step_index += 1
-    
-    # Detach the resume loop
+
     spawn_agent_task(run_agent_loop(state))
     return {"message": "Task resumed."}

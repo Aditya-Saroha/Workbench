@@ -1,5 +1,5 @@
 server:
-  nodeId: ryzen-local
+  nodeId: macbook-local
   host: 127.0.0.1
   port: 11435
   basePath: /
@@ -14,15 +14,23 @@ ollama:
   baseUrl: http://127.0.0.1:11434
   openAiCompatiblePath: /v1/chat/completions
   nativeApiBasePath: /api
-  keepAlive: 10m
-  requestTimeoutMs: 300000   # generous — CPU inference is slower, don't time out mid-response
+  # Kept short: on 16GB unified memory, a triage call followed by a coder or
+  # qwen3:8b call within the same keep-alive window can leave more than one
+  # model resident at once and push the system into swap.
+  keepAlive: 3m
+  requestTimeoutMs: 300000
 
 gpu:
+  # Apple Silicon uses unified memory shared with the CPU — there is no
+  # discrete VRAM pool for the detector to report, hence provider: none /
+  # vramTotalMb: 0 below. Ollama still uses the Metal backend automatically
+  # regardless of this block; these fields only feed this router's own
+  # scheduling heuristics.
   provider: none
-  name: "CPU only (Ryzen 5 5500U integrated graphics, no dedicated GPU)"
+  name: "Apple Silicon (M-series) — unified memory, no discrete VRAM to report"
   vramTotalMb: 0
   vramSafetyReserveMb: 0
-  maxGpuUtilizationPct: 100   # harmless placeholder — irrelevant with provider: none
+  maxGpuUtilizationPct: 100
   requireGpuOnlyByDefault: false
   monitor:
     enabled: false
@@ -32,8 +40,8 @@ gpu:
 router:
   defaultMode: auto
   syncMaxQueueTimeMs: 250
-  heavyLoadQueueDepth: 1              # low — one CPU-bound request already counts as load
-  heavyLoadGpuFreeMbThreshold: 0      # unused with gpu.provider: none
+  heavyLoadQueueDepth: 1
+  heavyLoadGpuFreeMbThreshold: 0
   defaultTaskType: unknown
   classification:
     mode: heuristic
@@ -46,68 +54,80 @@ jobs:
   cleanupIntervalMs: 60000
 
 models:
-  - name: smollm2:360m
-    sizeGb: 0.75
-    purpose: [triage, simple_chat, classification]
+  # Fast triage/classification. Native tool-calling and much better
+  # instruction-following than smollm2:360m at a nearly identical footprint.
+  - name: qwen3:0.6b
+    sizeGb: 0.4
+    purpose: [triage, classification]
     priority: 40
     maxConcurrent: 1
     defaultContext: 2048
     maxContext: 4096
-    timeoutMs: 60000
+    timeoutMs: 30000
     costClass: low
     exclusive: false
     allowWhenBusy: true
 
-  - name: qwen2.5:0.5b
-    sizeGb: 0.5
+  # General conversational replies and summarization. Small enough to stay
+  # resident without crowding out the coder/8B model.
+  - name: qwen3:4b
+    sizeGb: 2.5
     purpose: [simple_chat, summarize]
-    priority: 35
-    maxConcurrent: 1
-    defaultContext: 2048
-    maxContext: 4096
-    timeoutMs: 60000
-    costClass: low
-    exclusive: false
-    allowWhenBusy: true
-
-  - name: qwen2.5-coder:1.5b
-    sizeGb: 1.0
-    purpose: [code_generate, code_review, code_fix, tool_use]
-    priority: 60
+    priority: 45
     maxConcurrent: 1
     defaultContext: 4096
     maxContext: 8192
-    timeoutMs: 120000
+    timeoutMs: 60000
     costClass: low
     exclusive: false
     allowWhenBusy: true
 
+  # Dedicated code model — still the best code-specialized option at this
+  # memory tier; no small dense Qwen3-Coder exists yet (only 30B/480B MoE,
+  # which need far more than 16GB of unified memory).
   - name: qwen2.5-coder:7b
     sizeGb: 4.7
-    purpose: [code_generate, code_review, code_fix, agentic_reasoning, large_context]
-    priority: 50            # lower than the 1.5b — fast model wins by default on this hardware
+    purpose: [code_generate, code_review, code_fix]
+    priority: 55
     maxConcurrent: 1
     defaultContext: 4096
     maxContext: 8192
-    timeoutMs: 300000       # 5 min — CPU inference on a 7B model can be genuinely slow
+    timeoutMs: 300000
     costClass: high
-    exclusive: true         # don't let it share the CPU/RAM budget with anything else
+    exclusive: true
+    allowWhenBusy: false
+
+  # Planner/critic/tool-calling workhorse. Native tool calling makes this
+  # the model actually used for generate_plan/evaluate_step in agent.py —
+  # this is what fixes the malformed-JSON PlanStep crashes. Context ceiling
+  # raised for the large_context route; default kept modest so ordinary
+  # tool_use/agentic_reasoning calls don't pay for a KV cache they don't need.
+  - name: qwen3:8b
+    sizeGb: 5.2
+    purpose: [tool_use, agentic_reasoning, large_context]
+    priority: 50
+    maxConcurrent: 1
+    defaultContext: 4096
+    maxContext: 32768
+    timeoutMs: 240000
+    costClass: high
+    exclusive: true
     allowWhenBusy: false
 
 routes:
-  triage: [smollm2:360m]
-  simple_chat: [smollm2:360m, qwen2.5:0.5b]
-  summarize: [qwen2.5:0.5b]
-  code_generate: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
-  code_review: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
-  code_fix: [qwen2.5-coder:1.5b, qwen2.5-coder:7b]
-  agentic_reasoning: [qwen2.5-coder:7b]
-  large_context: [qwen2.5-coder:7b]
-  tool_use: [qwen2.5-coder:1.5b]
-  unknown: [smollm2:360m]
+  triage: [qwen3:0.6b]
+  simple_chat: [qwen3:4b]
+  summarize: [qwen3:4b]
+  code_generate: [qwen2.5-coder:7b]
+  code_review: [qwen2.5-coder:7b]
+  code_fix: [qwen2.5-coder:7b]
+  agentic_reasoning: [qwen3:8b]
+  large_context: [qwen3:8b]
+  tool_use: [qwen3:8b]
+  unknown: [qwen3:0.6b]
 
 queue:
-  globalMaxConcurrent: 1     # one request at a time — no headroom for parallel CPU inference
+  globalMaxConcurrent: 1
   globalMaxQueued: 50
   perUserMaxQueued: 10
   defaultPriority: normal

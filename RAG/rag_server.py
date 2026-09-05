@@ -3,7 +3,7 @@ import shutil
 import asyncio
 from typing import List
 
-from fastapi import FastAPI, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -24,6 +24,16 @@ app.add_middleware(
 # "something is stuck".
 app.state.ingest_in_progress = False
 app.state.last_ingest_result = None
+
+# NOTE: assumes `rag` exposes a `delete_document(filename)` that drops the
+# file's chunks from the index. If it doesn't exist yet, the endpoint below
+# still removes the file from disk and reports that the index wasn't
+# touched, rather than silently doing nothing or crashing.
+try:
+    from rag import delete_document as rag_delete_document
+except ImportError as e:
+    print(f"Warning: Could not import delete_document. Error: {e}")
+    rag_delete_document = None
 
 
 class QueryRequest(BaseModel):
@@ -106,3 +116,36 @@ def list_documents():
         if f.lower().endswith((".pdf", ".docx", ".xlsx"))
     )
     return {"files": files}
+
+
+@app.delete("/documents/{filename}")
+def delete_document(filename: str):
+    # Path traversal guard: filename must be a bare name, not a path that
+    # could escape DOCUMENTS_DIR (e.g. "../../etc/passwd").
+    if filename != os.path.basename(filename) or filename in ("", ".", ".."):
+        raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
+
+    dest = os.path.join(DOCUMENTS_DIR, filename)
+    if not os.path.isfile(dest):
+        raise HTTPException(status_code=404, detail=f"'{filename}' not found in {DOCUMENTS_DIR}")
+
+    index_error = None
+    if rag_delete_document:
+        try:
+            rag_delete_document(filename)
+        except Exception as e:
+            # Don't let an index-side failure block removing the file the
+            # user asked to remove — report it instead so the caller knows
+            # the index may be stale until the next full re-ingest.
+            index_error = str(e)
+    else:
+        index_error = "rag.delete_document is not available; index not updated — a re-ingest will be needed to fully drop this file's chunks."
+
+    os.remove(dest)
+
+    return {
+        "status": "ok",
+        "filename": filename,
+        "index_updated": index_error is None,
+        "detail": index_error,
+    }

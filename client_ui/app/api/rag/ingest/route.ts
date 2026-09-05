@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const RAG_URL = process.env.RAG_URL ?? "http://127.0.0.1:8081";
+const RAG_URL = process.env.RAG_URL ?? "http://127.0.0.1:8000";
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData();

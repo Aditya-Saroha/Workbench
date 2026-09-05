@@ -2,10 +2,61 @@ from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 
+import httpx
+import asyncio
+
 from .models import AgentState, TaskRequest
 from .agent import run_agent_loop, log_trace
 
 app = FastAPI(title="MRPL Agentic Workbench API")
+
+# main.py
+background_tasks: set[asyncio.Task] = set()
+
+def spawn_agent_task(coro):
+    task = asyncio.create_task(coro)
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+    return task
+
+async def _prewarm_model():
+    app.state.model_ready = False
+    print("Pre-warming Ollama router model into VRAM...")
+    # Bounded per-attempt timeout: a hung/loading Ollama shouldn't let this
+    # request sit open indefinitely, since that occupies Ollama's (typically
+    # single) execution slot and will make the *next* real request — the
+    # first user's routing/classification call — queue behind it and look
+    # permanently "stuck".
+    timeout = httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        for attempt in range(30):  # retry for up to ~2.5 min if Ollama isn't up yet
+            try:
+                resp = await client.post(
+                    "http://127.0.0.1:11434/api/generate",
+                    json={
+                        "model": "llama3.2:1b",
+                        "prompt": "",
+                        "stream": False,
+                        "keep_alive": -1,  # -1 = never unload
+                    },
+                )
+                resp.raise_for_status()
+                app.state.model_ready = True
+                print("Model pre-warmed and pinned in VRAM.")
+                return
+            except Exception as e:
+                print(f"Ollama not ready yet ({e}), retrying in 5s...")
+                await asyncio.sleep(5)
+    print("Warning: could not confirm Ollama is ready after retries.")
+
+
+@app.on_event("startup")
+async def prewarm_model():
+    # Fire-and-forget: don't let this block Uvicorn from accepting requests.
+    # The agent loop already checks is_model_loaded() per-request and logs a
+    # "cold-loading" message, so real requests degrade gracefully instead of
+    # the whole API being unreachable while this retries in the background.
+    spawn_agent_task(_prewarm_model())
 
 # Enable CORS for the client_ui (React/Vue/etc.)
 app.add_middleware(
@@ -18,16 +69,11 @@ app.add_middleware(
 
 # In-memory state store for the hackathon (use Redis/SQLite for production)
 active_tasks: Dict[str, AgentState] = {}
-
 @app.post("/api/task")
-async def create_task(request: TaskRequest, background_tasks: BackgroundTasks):
-    """Initializes a new agent task and starts the loop in the background."""
+async def create_task(request: TaskRequest):
     new_state = AgentState(original_prompt=request.prompt)
     active_tasks[new_state.task_id] = new_state
-    
-    # Run the loop in the background so the endpoint returns immediately
-    background_tasks.add_task(run_agent_loop, new_state)
-    
+    spawn_agent_task(run_agent_loop(new_state))
     return {"task_id": new_state.task_id, "status": new_state.status}
 
 @app.get("/api/agent/{task_id}/trace")
@@ -44,25 +90,20 @@ async def get_task_trace(task_id: str):
         "trace": state.trace_log,
         "final_deliverable": state.final_deliverable
     }
-
 @app.post("/api/agent/{task_id}/resume")
-async def resume_task(task_id: str, background_tasks: BackgroundTasks):
-    """Resumes a paused task (e.g., after human approval)."""
+async def resume_task(task_id: str):
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
         
     state = active_tasks[task_id]
-    
     if state.status != "paused":
         raise HTTPException(status_code=400, detail="Task is not paused.")
         
-    # Mark the paused step as successful
     current_step = state.plan[state.current_step_index]
     current_step.status = "success"
     log_trace(state, "System", "Human approval received. Resuming...")
     state.current_step_index += 1
     
-    # Resume the loop
-    background_tasks.add_task(run_agent_loop, state)
-    
+    # Detach the resume loop
+    spawn_agent_task(run_agent_loop(state))
     return {"message": "Task resumed."}

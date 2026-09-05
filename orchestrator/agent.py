@@ -5,7 +5,15 @@ from typing import Dict, Any
 from .models import AgentState, PlanStep
 from .tools import execute_tool
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
+# Change this:
+# OLLAMA_URL = "http://localhost:11434/api/generate"
+
+# To this explicitly:
+# agent.py
+import asyncio
+
+
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 PLANNER_MODEL = "llama3.2:1b" # Change to your chosen router model
 
 def log_trace(state: AgentState, source: str, message: str):
@@ -17,17 +25,30 @@ def log_trace(state: AgentState, source: str, message: str):
         "message": message
     })
 
-async def call_ollama(prompt: str, model: str = PLANNER_MODEL, format: str = "") -> str:
-    """Helper to query the local Ollama instance."""
+async def call_ollama(
+    prompt: str,
+    model: str = PLANNER_MODEL,
+    format: str = "",
+    options: dict | None = None,
+    read_timeout: float = 240.0,
+) -> str:
     payload = {
         "model": model,
         "prompt": prompt,
-        "stream": False
+        "stream": False,
+        "keep_alive": -1,
     }
     if format:
         payload["format"] = format
-        
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    if options:
+        payload["options"] = options
+
+    # Shorter, per-call timeout: routing/classification should be near-instant,
+    # while planning/generation legitimately needs longer. Passing a small
+    # read_timeout for routing means a hung/queued call fails fast and shows
+    # up in the trace instead of looking permanently "stuck".
+    timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(OLLAMA_URL, json=payload)
         response.raise_for_status()
         return response.json()["response"]
@@ -74,20 +95,49 @@ async def classify_intent(prompt: str) -> str:
 
 User: {prompt}
 Classification:"""
-    
-    # We don't force JSON here, just a quick text completion
-    response = await call_ollama(sys_prompt, model=PLANNER_MODEL)
+
+    # This should be a near-instant decision. Cap num_predict and pin
+    # temperature so the model can't wander off into a long ramble, and use a
+    # short read_timeout so a queued/hung call raises quickly (and gets
+    # logged) instead of sitting silently for the full 240s.
+    try:
+        response = await call_ollama(
+            sys_prompt,
+            model=PLANNER_MODEL,
+            options={"num_predict": 8, "temperature": 0, "stop": ["\n"]},
+            read_timeout=20.0,
+        )
+    except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as e:
+        # Ollama likely still busy/loading (e.g. from a startup prewarm still
+        # in flight) or unreachable. Default to SIMPLE rather than hanging the
+        # whole task on the router.
+        raise RuntimeError(f"classify_intent: router call failed ({e})") from e
+
     return "COMPLEX" if "COMPLEX" in response.upper() else "SIMPLE"
+async def is_model_loaded(model: str = PLANNER_MODEL) -> bool:
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            resp = await client.get("http://127.0.0.1:11434/api/ps")
+            resp.raise_for_status()
+            return any(m["name"] == model for m in resp.json().get("models", []))
+        except Exception:
+            return False
 
 async def run_agent_loop(state: AgentState):
     try:
         state.status = "planning"
-        log_trace(state, "System", "Routing request...")
+        if not await is_model_loaded():
+            log_trace(state, "System", "Model not resident in VRAM — cold-loading now, typically <2 min.")
+        else:
+            log_trace(state, "System", "Routing request...")
         
-        # 1. SMART ROUTING & PLANNING
         if not state.plan:
-            intent = await classify_intent(state.original_prompt)
-            
+            try:
+                intent = await classify_intent(state.original_prompt)
+            except RuntimeError as e:
+                log_trace(state, "Router", f"Router call failed ({e}); defaulting to SIMPLE.")
+                intent = "SIMPLE"
+
             if intent == "SIMPLE":
                 log_trace(state, "Router", "Classified as simple conversational task. Bypassing planner.")
                 state.plan = [
@@ -120,7 +170,8 @@ async def run_agent_loop(state: AgentState):
                 return 
                 
             try:
-                observation = execute_tool(current_step.tool_name, current_step.tool_args)
+
+                observation = await asyncio.get_event_loop().run_in_executor(None, execute_tool, current_step.tool_name, current_step.tool_args)
                 log_trace(state, "Tool Output", str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation))
                 
                 # Fast-path bypasses the Critic to save time

@@ -89,7 +89,7 @@ models:
     maxConcurrent: 1
     defaultContext: 4096
     maxContext: 8192
-    timeoutMs: 60000
+    timeoutMs: 300000
     costClass: low
     exclusive: false
     allowWhenBusy: true
@@ -114,12 +114,20 @@ models:
   # this is what fixes the malformed-JSON PlanStep crashes. Context ceiling
   # raised for the large_context route; default kept modest so ordinary
   # tool_use/agentic_reasoning calls don't pay for a KV cache they don't need.
+  #
+  # Was 4096. agent.py now sends "think": false on generate_plan/
+  # evaluate_step (the tool_use route's only two callers) so this no
+  # longer has to absorb an unbounded <think> block, but 4096 was still
+  # tight for sys_prompt + a multi-step JSON plan + generation headroom —
+  # that combination hitting the ceiling mid-JSON is what produced the
+  # truncated-output 500s. 8192 gives real margin without paying for the
+  # full 32768 large_context KV cache on every ordinary planning call.
   - name: qwen3:8b
     sizeGb: 5.2
     purpose: [tool_use, agentic_reasoning, large_context]
     priority: 50
     maxConcurrent: 1
-    defaultContext: 4096
+    defaultContext: 8192
     maxContext: 32768
     timeoutMs: 240000
     costClass: high

@@ -95,7 +95,7 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
         req = urllib.request.Request("http://127.0.0.1:11435/v1/chat/completions", data=payload, headers={"Content-Type": "application/json"})
         
         try:
-            with urllib.request.urlopen(req, timeout=45) as response:
+            with urllib.request.urlopen(req, timeout=300) as response:
                 result = json.loads(response.read().decode("utf-8"))
                 return result.get("choices", [{}])[0].get("message", {}).get("content", "No response generated.")
         except Exception as e:

@@ -119,6 +119,7 @@ async def call_ollama(
     format: str = "",
     options: dict | None = None,
     read_timeout: float = 240.0,
+    think: bool = True,
 ) -> str:
     # ollama-agent-router expects the task type under `router.taskType`,
     # not crammed into the top-level `model` field — every documented
@@ -136,6 +137,18 @@ async def call_ollama(
         "messages": [{"role": "user", "content": prompt}],
         "router": {"taskType": task_type, "mode": "sync", "allowAsync": False},
     }
+    if not think:
+        # Qwen3 (and other hybrid-thinking models) emit a <think>...</think>
+        # block before the real answer unless told not to. That's pure
+        # token overhead for generate_plan/evaluate_step, which only want
+        # JSON back — and it's what was blowing through the tool_use
+        # route's deliberately-small defaultContext (4096, see
+        # ollama-agent-router.yaml), producing the truncated-JSON 500s
+        # after ~60s. "think" is Ollama's own /v1/chat/completions
+        # extension for hybrid-thinking models (not part of the OpenAI
+        # spec); ollama-agent-router forwards unrecognized fields straight
+        # through to Ollama per its docs, so this reaches Ollama unchanged.
+        payload["think"] = False
     if format:
         payload["response_format"] = {"type": "json_object"}
     if options:
@@ -152,7 +165,24 @@ async def call_ollama(
     timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(ROUTER_URL, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            # httpx's default str(e) is just "Server error '500 Internal
+            # Server Error' for url ...' — it drops the actual response
+            # body, which is the only place the real failure reason shows
+            # up (e.g. Ollama's "qwen3 tool call parsing failed" /
+            # truncated-JSON message). Surface it explicitly so trace logs
+            # actually say what happened instead of a generic status code.
+            # Recast as RuntimeError so callers that already handle
+            # RuntimeError from this function (classify_intent,
+            # classify_and_maybe_answer's caller in run_agent_loop) get the
+            # graceful SIMPLE/COMPLEX fallback instead of a raw httpx
+            # exception skipping past that except clause.
+            raise RuntimeError(
+                f"call_ollama: {model} request failed "
+                f"({e.response.status_code}): {e.response.text[:500]!r}"
+            ) from e
         data = response.json()
         return data["choices"][0]["message"]["content"]
 
@@ -277,7 +307,13 @@ User Request: {prompt}
 Respond with ONLY a top-level JSON array, exactly like this, with no wrapping object and no stringified elements:
 [{{"step_id": 1, "description": "...", "tool_name": "...", "tool_args": {{}}}}]"""
 
-    raw_response = await call_ollama(sys_prompt, model=PLANNER_MODEL, format="json")
+    raw_response = await call_ollama(
+        sys_prompt,
+        model=PLANNER_MODEL,
+        format="json",
+        options={"num_predict": 1024},
+        think=False,
+    )
     return extract_json_from_llm(raw_response)
 
 
@@ -287,7 +323,13 @@ Step Goal: {step.description}
 Tool Output: {observation}
 Reply strictly in JSON: {{"passed": true/false, "reason": "..."}}"""
 
-    raw_response = await call_ollama(sys_prompt, model=PLANNER_MODEL, format="json")
+    raw_response = await call_ollama(
+        sys_prompt,
+        model=PLANNER_MODEL,
+        format="json",
+        options={"num_predict": 256},
+        think=False,
+    )
     try:
         match = re.search(r'\{.*\}', raw_response, re.DOTALL)
         if match:

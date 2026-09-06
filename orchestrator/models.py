@@ -25,6 +25,12 @@ class AgentState(BaseModel):
     final_deliverable: Optional[str] = None
     last_tool_output: Optional[str] = None
     status: str = Field(default="initializing")  # initializing, planning, executing, paused, completed, failed, cancelled
+    # Name of the model currently cold-loading, or None. Lets the frontend
+    # show "warming up qwen3:8b, first response may take ~2 min" instead of
+    # a generic spinner indistinguishable from a hang. Set right before a
+    # call that might hit a cold model, cleared once that call returns
+    # (success or failure) — see run_agent_loop.
+    warming_model: Optional[str] = None
 
 class TaskRequest(BaseModel):
     prompt: str

@@ -20,6 +20,10 @@ def spawn_agent_task(coro):
     task.add_done_callback(background_tasks.discard)
     return task
 
+async def _save_state_async(state: AgentState) -> None:
+    """Runs the blocking SQLite write off the event loop (same helper as agent.py)."""
+    await asyncio.get_event_loop().run_in_executor(None, save_state, state)
+
 async def _prewarm_model():
     app.state.model_ready = False
     # Prewarm every model actually hit by the request path, not a single
@@ -91,7 +95,7 @@ async def create_task(request: TaskRequest):
     active_tasks[new_state.task_id] = new_state
     import time
     session_activity[request.session_id] = time.time()
-    save_state(new_state)
+    await _save_state_async(new_state)
     active_task_handles[new_state.task_id] = spawn_agent_task(run_agent_loop(new_state))
     return {"task_id": new_state.task_id, "status": new_state.status}
 
@@ -112,6 +116,10 @@ async def get_task_trace(task_id: str, x_session_id: str = Header("default")):
         "final_deliverable": state.final_deliverable,
         "last_tool_output": state.last_tool_output,
         "session_id": state.session_id,
+        # Distinct from "status": lets the UI show "warming up qwen3:8b,
+        # first response may take ~2 min" instead of a generic spinner
+        # that looks identical to a hang. None once nothing is cold-loading.
+        "warming_model": state.warming_model,
     }
 
 @app.post("/api/agent/{task_id}/resume")
@@ -132,8 +140,8 @@ async def resume_task(task_id: str, x_session_id: str = Header("default")):
     # skipped entirely.
     current_step = state.plan[state.current_step_index]
     current_step.human_approved = True
-    log_trace(state, "System", "Human approval received. Resuming...")
-    save_state(state)
+    await log_trace(state, "System", "Human approval received. Resuming...")
+    await _save_state_async(state)
 
     active_task_handles[task_id] = spawn_agent_task(run_agent_loop(state))
     return {"message": "Task resumed."}
@@ -151,13 +159,13 @@ async def cancel_task(task_id: str, x_session_id: str = Header("default")):
         raise HTTPException(status_code=400, detail=f"Task is already {state.status}.")
     if state.status == "paused":
         state.status = "cancelled"
-        log_trace(state, "System", "Task cancelled by user.")
-        save_state(state)
+        await log_trace(state, "System", "Task cancelled by user.")
+        await _save_state_async(state)
         return {"message": "Task cancelled."}
 
     state.status = "cancelled"
-    log_trace(state, "System", "Task cancellation requested by user.")
-    save_state(state)
+    await log_trace(state, "System", "Task cancellation requested by user.")
+    await _save_state_async(state)
     task = active_task_handles.get(task_id)
     if task and not task.done():
         task.cancel()

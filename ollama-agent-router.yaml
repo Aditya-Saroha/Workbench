@@ -14,10 +14,19 @@ ollama:
   baseUrl: http://127.0.0.1:11434
   openAiCompatiblePath: /v1/chat/completions
   nativeApiBasePath: /api
-  # Kept short: on 16GB unified memory, a triage call followed by a coder or
-  # qwen3:8b call within the same keep-alive window can leave more than one
-  # model resident at once and push the system into swap.
-  keepAlive: 3m
+  # Was 3m. The router config reference doesn't expose a per-model
+  # keepAlive override (only global), so this applies to every model —
+  # but qwen3:4b (triage + simple_chat, hit on nearly every request) is
+  # the one this actually matters for. 3 minutes was short enough that a
+  # single heavier request (planner/coder) evicting it to free memory
+  # meant the very next "hi" paid a full cold-load again. 30m keeps it
+  # resident through normal idle gaps between messages. The heavy
+  # exclusive models (qwen3:8b, qwen2.5-coder:7b) are already penalised
+  # in the router's scoring while running (exclusive: true → -80 per
+  # running job), so they still get displaced under real memory
+  # pressure regardless of this value — this mainly protects the small,
+  # constantly-used model from unnecessary reloading.
+  keepAlive: 30m
   requestTimeoutMs: 300000
 
 gpu:

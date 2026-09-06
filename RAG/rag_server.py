@@ -127,9 +127,6 @@ def delete_document(filename: str):
         raise HTTPException(status_code=400, detail=f"Invalid filename: {filename}")
 
     dest = os.path.join(DOCUMENTS_DIR, filename)
-    if not os.path.isfile(dest):
-        raise HTTPException(status_code=404, detail=f"'{filename}' not found in {DOCUMENTS_DIR}")
-
     index_error = None
     removed_chunks = 0
     if rag_delete_document:
@@ -143,7 +140,15 @@ def delete_document(filename: str):
     else:
         index_error = "rag.delete_document is not available; index not updated — a re-ingest will be needed to fully drop this file's chunks."
 
-    os.remove(dest)
+    file_exists = os.path.isfile(dest)
+    if not file_exists and removed_chunks == 0:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{filename}' was not found on disk or in the retrieval index.",
+        )
+
+    if file_exists:
+        os.remove(dest)
 
     return {
         "status": "ok",

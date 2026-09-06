@@ -148,8 +148,10 @@ export async function waitForIngestion(timeoutMs = 120_000): Promise<{ error?: s
 
 export async function listDocuments(): Promise<{ files?: string[]; error?: string; detail?: string }> {
   try {
-    const res = await fetch("/api/documents");
-    return await res.json();
+    const res = await fetch("/api/documents", { cache: "no-store" });
+    const body = await res.json();
+    if (!res.ok) return { error: body.error ?? "documents_unavailable", detail: body.detail };
+    return body;
   } catch {
     return { error: "network_error" };
   }
@@ -157,7 +159,7 @@ export async function listDocuments(): Promise<{ files?: string[]; error?: strin
 
 export async function deleteDocument(
   filename: string
-): Promise<{ error?: string; detail?: string }> {
+): Promise<{ error?: string; detail?: string; status?: number }> {
   try {
     const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
@@ -165,7 +167,7 @@ export async function deleteDocument(
  
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      return { error: `Delete failed (${res.status})`, detail: body.detail };
+      return { error: `Delete failed (${res.status})`, detail: body.detail, status: res.status };
     }
     return {};
   } catch {

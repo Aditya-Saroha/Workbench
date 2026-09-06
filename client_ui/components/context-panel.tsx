@@ -33,7 +33,18 @@ export function ContextPanel() {
 
   const loadingPhrase = useRotatingPhrase(pending, SEARCH_PHRASES);
 
-  useEffect(() => { refreshFiles(); }, []);
+  useEffect(() => {
+    refreshFiles();
+
+    const refreshOnFocus = () => refreshFiles();
+    const interval = window.setInterval(refreshFiles, 5000);
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, []);
 
   async function refreshFiles() {
     const res = await listDocuments();
@@ -55,6 +66,11 @@ export function ContextPanel() {
     setRemoving(null);
     if (!res.error) {
       setFiles((prev) => prev.filter((f) => f !== name));
+    } else if (res.status === 404) {
+      // The row can outlive the file after a restart or external cleanup.
+      // Remove it locally and reconcile with the RAG service's list.
+      setFiles((prev) => prev.filter((f) => f !== name));
+      await refreshFiles();
     } else {
       setFilesError(res.detail ?? res.error);
     }

@@ -187,7 +187,18 @@ export function ChatPanel() {
   const initPhrase = useRotatingPhrase(pending && !!status && !activeTaskId && !status.startsWith("Uploading"), INIT_PHRASES);
   const uploadPhrase = useRotatingPhrase(!!status?.startsWith("Uploading"), UPLOAD_PHRASES);
 
-  useEffect(() => { refreshKnowledgeBase(); }, []);
+  useEffect(() => {
+    refreshKnowledgeBase();
+
+    const refreshOnFocus = () => refreshKnowledgeBase();
+    const interval = window.setInterval(refreshKnowledgeBase, 5000);
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, []);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [turns, status]);
 
   useEffect(() => {
@@ -257,6 +268,9 @@ export function ChatPanel() {
     setRemovingFile(null);
     if (!res.error) {
       setKbFiles((prev) => prev.filter((f) => f !== name));
+    } else if (res.status === 404) {
+      setKbFiles((prev) => prev.filter((f) => f !== name));
+      await refreshKnowledgeBase();
     }
   }
 

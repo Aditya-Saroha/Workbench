@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-const RAG_SERVICE_URL = process.env.RAG_SERVICE_URL ?? "http://127.0.0.1:8000";
+const RAG_SERVICE_URL = process.env.RAG_URL ?? process.env.RAG_SERVICE_URL ?? "http://127.0.0.1:8000";
 
 export async function DELETE(req: NextRequest) {
   try {

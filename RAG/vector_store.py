@@ -26,6 +26,17 @@ INDEX_PATH = os.path.join(DATA_DIR, "faiss.index")
 META_PATH = os.path.join(DATA_DIR, "chunks_meta.json")
 
 
+def clear_index() -> None:
+    """Remove persisted vector, metadata, and lexical index artifacts."""
+    for path in (INDEX_PATH, META_PATH, os.path.join(DATA_DIR, "bm25.pkl")):
+        if os.path.exists(path):
+            os.remove(path)
+
+    if RERANKING_ENABLED:
+        from reranker import invalidate_cache
+        invalidate_cache()
+
+
 # ─── Build & Save ─────────────────────────────────────────────────────
 
 def build_index(chunks: list[dict]) -> faiss.Index:
@@ -42,6 +53,10 @@ def build_index(chunks: list[dict]) -> faiss.Index:
 
     Returns the FAISS index object.
     """
+    if not chunks:
+        clear_index()
+        raise ValueError("Cannot build an index without document chunks.")
+
     texts = [c["text"] for c in chunks]
     print(f"🔢 Embedding {len(texts)} chunks...")
     vectors = embed_texts(texts)

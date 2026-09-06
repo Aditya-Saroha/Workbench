@@ -131,9 +131,10 @@ def delete_document(filename: str):
         raise HTTPException(status_code=404, detail=f"'{filename}' not found in {DOCUMENTS_DIR}")
 
     index_error = None
+    removed_chunks = 0
     if rag_delete_document:
         try:
-            rag_delete_document(filename)
+            removed_chunks = rag_delete_document(filename)
         except Exception as e:
             # Don't let an index-side failure block removing the file the
             # user asked to remove — report it instead so the caller knows
@@ -148,5 +149,6 @@ def delete_document(filename: str):
         "status": "ok",
         "filename": filename,
         "index_updated": index_error is None,
+        "removed_chunks": removed_chunks,
         "detail": index_error,
     }

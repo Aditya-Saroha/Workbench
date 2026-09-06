@@ -30,7 +30,8 @@ Usage from the command line:
 import json
 from config import TOP_K, DOCUMENTS_DIR
 from ingest import ingest_pdfs
-from vector_store import build_index
+from vector_store import build_index, clear_index, load_index
+from reranker import invalidate_cache
 from retrieve import retrieve
 
 
@@ -66,6 +67,32 @@ def query_rag(query: str, top_k: int = TOP_K) -> dict:
     `sources` for citations.
     """
     return retrieve(query, top_k=top_k)
+
+
+def delete_document(filename: str) -> int:
+    """Remove one source document and all of its chunks from every index.
+
+    The source file is deleted by ``rag_server``. This function only updates
+    persisted retrieval data, using the exact stored basename as identity.
+    Returns the number of removed chunks.
+    """
+    try:
+        _, chunks = load_index()
+    except FileNotFoundError:
+        return 0
+
+    remaining = [chunk for chunk in chunks if chunk.get("source") != filename]
+    removed = len(chunks) - len(remaining)
+    if removed == 0:
+        return 0
+
+    if remaining:
+        build_index(remaining)
+    else:
+        clear_index()
+
+    invalidate_cache()
+    return removed
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

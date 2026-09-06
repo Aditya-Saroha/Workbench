@@ -36,11 +36,21 @@ COMPLEX_KEYWORDS = (
     "search the knowledge base", "search my knowledge base",
     "read_file", "read the file", "read this file", "read the document",
 )
+DOCUMENT_QUERY_KEYWORDS = (
+    ".pdf", ".docx", ".xlsx", "problem statement", "attached file",
+    "attached document", "uploaded file", "uploaded document", "my document",
+    "my documents", "knowledge base", "from the document", "in the document",
+)
 
 
 def _looks_complex(prompt: str) -> bool:
     lower = prompt.lower()
-    return any(kw in lower for kw in COMPLEX_KEYWORDS)
+    return any(kw in lower for kw in COMPLEX_KEYWORDS + DOCUMENT_QUERY_KEYWORDS)
+
+
+def _needs_document_search(prompt: str) -> bool:
+    lower = prompt.lower()
+    return any(kw in lower for kw in DOCUMENT_QUERY_KEYWORDS)
 
 
 def log_trace(state: AgentState, source: str, message: str):
@@ -158,13 +168,13 @@ def normalize_plan_steps(raw_steps: list, state: AgentState) -> list[dict]:
                 log_trace(
                     state, "Planner",
                     f"Step {i} came back as a bare string, not an object; "
-                    f"coercing into a direct_chat fallback step."
+                    f"coercing into a search_rag step."
                 )
                 item = {
                     "step_id": i + 1,
                     "description": item,
-                    "tool_name": "direct_chat",
-                    "tool_args": {"prompt": item},
+                    "tool_name": "search_rag",
+                    "tool_args": {"query": item},
                 }
 
         if not isinstance(item, dict):
@@ -321,8 +331,17 @@ async def run_agent_loop(state: AgentState):
                         state, "System",
                         f"{PLANNER_MODEL} not resident in memory — cold-loading now, typically <2 min."
                     )
-                plan_data = await generate_plan(state.original_prompt)
-                plan_data = normalize_plan_steps(plan_data, state)
+                if _needs_document_search(state.original_prompt):
+                    log_trace(state, "RAG", "Document query detected. Searching the knowledge base before answering.")
+                    plan_data = [{
+                        "step_id": 1,
+                        "description": "Retrieve relevant document excerpts",
+                        "tool_name": "search_rag",
+                        "tool_args": {"query": state.original_prompt},
+                    }]
+                else:
+                    plan_data = await generate_plan(state.original_prompt)
+                    plan_data = normalize_plan_steps(plan_data, state)
 
                 if not plan_data:
                     log_trace(
@@ -338,6 +357,7 @@ async def run_agent_loop(state: AgentState):
         state.status = "executing"
 
         # 2. EXECUTION LOOP
+        retrieved_observations = []
         while state.current_step_index < len(state.plan):
             current_step = state.plan[state.current_step_index]
             current_step.status = "running"
@@ -366,6 +386,8 @@ async def run_agent_loop(state: AgentState):
                         None, execute_tool, current_step.tool_name, current_step.tool_args
                     )
                 state.last_tool_output = str(observation)
+                if current_step.tool_name == "search_rag":
+                    retrieved_observations.append(str(observation))
                 log_trace(
                     state, "Tool Output",
                     str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation)
@@ -399,6 +421,17 @@ async def run_agent_loop(state: AgentState):
                 return
 
         if state.current_step_index >= len(state.plan):
+            if retrieved_observations and not state.final_deliverable:
+                log_trace(state, "Executor", "Generating an answer from the retrieved document excerpts.")
+                grounded_prompt = (
+                    "Answer the user's request using the retrieved document excerpts below. "
+                    "Do not claim that you cannot access files. Cite the source and page "
+                    "when the excerpts provide that metadata. If the excerpts do not contain "
+                    "the answer, say so clearly.\n\n"
+                    f"User request: {state.original_prompt}\n\n"
+                    "Retrieved excerpts:\n" + "\n\n".join(retrieved_observations)
+                )
+                await stream_direct_chat(grounded_prompt, state)
             state.status = "completed"
             if not state.final_deliverable:
                 state.final_deliverable = "Task sequence finished."

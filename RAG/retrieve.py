@@ -50,28 +50,33 @@ def retrieve(query: str, top_k: int = TOP_K) -> dict:
         - The router can iterate `context` to build its LLM prompt and
           use `sources` for the citation footer.
     """
-    if RERANKING_ENABLED:
-        # Two-stage hybrid retrieval
-        from reranker import hybrid_search
+    try:
+        if RERANKING_ENABLED:
+            # Two-stage hybrid retrieval
+            from reranker import hybrid_search
 
-        # Stage 1a: Get a larger candidate pool from FAISS
-        pool_size = max(CANDIDATE_POOL_SIZE, top_k)
-        dense_results = search(query, top_k=pool_size)
+            # Stage 1a: Get a larger candidate pool from FAISS
+            pool_size = max(CANDIDATE_POOL_SIZE, top_k)
+            dense_results = search(query, top_k=pool_size)
 
-        # Stages 1b + 2: BM25 fusion + cross-encoder reranking
-        results = hybrid_search(query, top_k=top_k, dense_results=dense_results)
-    else:
-        # Original single-stage FAISS retrieval
-        raw_results = search(query, top_k=top_k)
-        results = [
-            {
-                "text": r["text"],
-                "source": r["source"],
-                "page": r["page"],
-                "score": round(r["score"], 4),
-            }
-            for r in raw_results
-        ]
+            # Stages 1b + 2: BM25 fusion + cross-encoder reranking
+            results = hybrid_search(query, top_k=top_k, dense_results=dense_results)
+        else:
+            # Original single-stage FAISS retrieval
+            raw_results = search(query, top_k=top_k)
+            results = [
+                {
+                    "text": r["text"],
+                    "source": r["source"],
+                    "page": r["page"],
+                    "score": round(r["score"], 4),
+                }
+                for r in raw_results
+            ]
+    except FileNotFoundError:
+        # An empty knowledge base is a valid state after deleting its last
+        # document; return an empty retrieval response instead of HTTP 500.
+        results = []
 
     context = results
 

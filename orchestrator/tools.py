@@ -25,6 +25,7 @@ except ImportError as e:
 # IDE auto-import hunting through the rest of the workspace and landing on
 # a stale copy in save_from_git/.
 DIRECT_CHAT_MODEL = "qwen3:4b"
+DIRECT_CHAT_ROUTE = "simple_chat"
 
 PROJECT_ROOT = Path(root_dir)
 SESSION_OUTPUTS = PROJECT_ROOT / "RAG" / "sessions"
@@ -82,7 +83,7 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
             return "Error: No valid 'prompt' provided to direct_chat tool."
             
         payload = json.dumps({
-            "model": DIRECT_CHAT_MODEL,
+            "model": DIRECT_CHAT_ROUTE,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
         }).encode("utf-8")

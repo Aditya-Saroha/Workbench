@@ -6,7 +6,7 @@ import httpx
 import asyncio
 
 from .models import AgentState, TaskRequest
-from .agent import run_agent_loop, log_trace, TRIAGE_MODEL, PLANNER_MODEL
+from .agent import run_agent_loop, log_trace, TRIAGE_MODEL, PLANNER_MODEL, TRIAGE_ROUTE, PLANNER_ROUTE, DIRECT_CHAT_ROUTE
 from .tools import DIRECT_CHAT_MODEL
 from .persistence import initialize, load_states, list_sessions as persisted_sessions, save_state
 
@@ -36,7 +36,7 @@ async def _prewarm_model():
                     resp = await client.post(
                         "http://127.0.0.1:11435/v1/chat/completions",
                         json={
-                            "model": model,
+                            "model": TRIAGE_ROUTE if model == TRIAGE_MODEL else PLANNER_ROUTE if model == PLANNER_MODEL else DIRECT_CHAT_ROUTE,
                             "messages": [{"role": "user", "content": ""}],
                             "stream": False,
                         },

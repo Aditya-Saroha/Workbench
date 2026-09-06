@@ -64,6 +64,16 @@ There are two local model paths:
 
 The orchestrator routes triage, planning, critic, and direct-chat requests
 through the agent router's OpenAI-compatible `/v1/chat/completions` endpoint.
+It selects router routes rather than concrete model names:
+
+```text
+triage request       → model: triage      → qwen3:4b
+planning/critic      → model: tool_use   → qwen3:8b
+direct chat/stream   → model: simple_chat → qwen3:4b
+```
+
+The router remains responsible for mapping routes to models, queueing work,
+and applying its configured scheduling policy.
 
 | Component | Runtime | Default port | Responsibility |
 |---|---|---:|---|
@@ -137,7 +147,7 @@ User prompt
    │
    ├── files → POST /api/rag/ingest → RAG /ingest
    │
-        └── text  → search RAG → POST /api/agent/task → orchestrator
+   └── text  → search RAG → POST /api/agent/task → orchestrator
                                       │
                                       ▼
                               task_id returned

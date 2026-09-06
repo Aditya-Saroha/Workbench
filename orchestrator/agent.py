@@ -8,6 +8,9 @@ from .tools import execute_tool, DIRECT_CHAT_MODEL
 from .persistence import save_state
 
 ROUTER_URL = "http://127.0.0.1:11435/v1/chat/completions"
+TRIAGE_ROUTE = "triage"
+PLANNER_ROUTE = "tool_use"
+DIRECT_CHAT_ROUTE = "simple_chat"
 
 # Split into two models rather than one:
 # - TRIAGE_MODEL: near-instant SIMPLE/COMPLEX classification. Small and fast.
@@ -73,8 +76,9 @@ async def call_ollama(
     options: dict | None = None,
     read_timeout: float = 240.0,
 ) -> str:
+    route = TRIAGE_ROUTE if model == TRIAGE_MODEL else PLANNER_ROUTE if model == PLANNER_MODEL else DIRECT_CHAT_ROUTE
     payload = {
-        "model": model,
+        "model": route,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
@@ -100,7 +104,7 @@ async def stream_direct_chat(prompt: str, state: AgentState) -> str:
     the complete response.
     """
     payload = {
-        "model": DIRECT_CHAT_MODEL,
+        "model": DIRECT_CHAT_ROUTE,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
     }

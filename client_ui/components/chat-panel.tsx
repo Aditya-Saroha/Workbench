@@ -10,6 +10,7 @@ import { uploadDocuments, listDocuments, deleteDocument } from "@/lib/api";
 import {
   ArrowUp, Paperclip, X, Library, CheckCircle2, CircleDashed, Loader2,
   ChevronDown, ChevronUp, Trash2, Check, AlertCircle,
+  Square,
 } from "lucide-react";
 
 interface PlanStep {
@@ -25,6 +26,7 @@ interface AgentState {
   plan: PlanStep[];
   trace: { timestamp: number; source: string; message: string }[];
   final_deliverable: string | null;
+  last_tool_output: string | null;
 }
 
 interface Turn {
@@ -223,7 +225,7 @@ export function ChatPanel() {
           return newTurns;
         });
 
-        if (["completed", "failed", "paused"].includes(data.status)) {
+        if (["completed", "failed", "paused", "cancelled"].includes(data.status)) {
           setIsPolling(false);
           if (data.status !== "paused") {
             setPending(false);
@@ -275,6 +277,28 @@ export function ChatPanel() {
   async function handleApprove(taskId: string) {
     setIsPolling(true);
     await fetch(`/api/agent/${taskId}/resume`, { method: "POST" });
+  }
+
+  async function stopTask() {
+    if (!activeTaskId) return;
+
+    const taskId = activeTaskId;
+    setIsPolling(false);
+    setActiveTaskId(null);
+    setPending(false);
+    setStatus(null);
+
+    const res = await fetch(`/api/agent/${taskId}/cancel`, { method: "POST" });
+    if (!res.ok) {
+      setTurns((prev) => {
+        const next = [...prev];
+        const lastTurn = next[next.length - 1];
+        if (lastTurn?.role === "assistant") {
+          lastTurn.error = "Could not stop the active task.";
+        }
+        return next;
+      });
+    }
   }
 
   async function submit() {
@@ -330,7 +354,7 @@ export function ChatPanel() {
         {
           role: "assistant",
           content: "",
-          agentState: { status: "initializing", current_step: 0, plan: [], trace: [], final_deliverable: null }
+          agentState: { status: "initializing", current_step: 0, plan: [], trace: [], final_deliverable: null, last_tool_output: null }
         }
       ]);
 
@@ -463,6 +487,11 @@ export function ChatPanel() {
                       </div>
                     )}
 
+                    <MockTerminal
+                      output={t.agentState.last_tool_output}
+                      live={t.agentState.status === "executing" && t.agentState.plan.some((step) => step.status === "running")}
+                    />
+
                     {/* Collapsible trace log */}
                     <TraceLog
                       trace={t.agentState.trace}
@@ -544,17 +573,47 @@ export function ChatPanel() {
               disabled={pending}
               className="flex-1 bg-transparent px-1 font-sans text-[13px] text-zinc-900 outline-none placeholder:text-zinc-500 disabled:opacity-50"
             />
-            <button
-              onClick={submit}
-              disabled={pending || (!input.trim() && stagedFiles.length === 0)}
-              className="shrink-0 rounded-xl bg-indigo-600 p-2 text-white transition-colors hover:bg-indigo-700 disabled:bg-zinc-100 disabled:text-zinc-300"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+            {activeTaskId ? (
+              <button
+                onClick={stopTask}
+                title="Stop active task"
+                aria-label="Stop active task"
+                className="shrink-0 rounded-xl bg-rose-600 p-2 text-white transition-colors hover:bg-rose-700"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={pending || (!input.trim() && stagedFiles.length === 0)}
+                className="shrink-0 rounded-xl bg-indigo-600 p-2 text-white transition-colors hover:bg-indigo-700 disabled:bg-zinc-100 disabled:text-zinc-300"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
+    </div>
+  );
+}
+
+function MockTerminal({ output, live }: { output: string | null; live: boolean }) {
+  if (!output && !live) return null;
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#11161b] shadow-sm">
+      <div className="flex items-center gap-2 border-b border-zinc-800 px-3.5 py-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        <span className="h-2 w-2 rounded-full bg-rose-400" />
+        <span className="h-2 w-2 rounded-full bg-amber-400" />
+        <span className="h-2 w-2 rounded-full bg-emerald-400" />
+        <span className="ml-1 text-zinc-400">workbench terminal</span>
+        {live && <Loader2 className="ml-auto h-3 w-3 animate-spin text-emerald-400" />}
+      </div>
+      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-[12px] leading-relaxed text-emerald-300">
+        <span className="select-none text-cyan-400">$ </span>{output || "Waiting for tool output…"}
+      </pre>
     </div>
   );
 }

@@ -22,7 +22,8 @@ class AgentState(BaseModel):
     current_step_index: int = 0
     trace_log: List[Dict[str, Any]] = []
     final_deliverable: Optional[str] = None
-    status: str = Field(default="initializing")  # initializing, planning, executing, paused, completed, failed
+    last_tool_output: Optional[str] = None
+    status: str = Field(default="initializing")  # initializing, planning, executing, paused, completed, failed, cancelled
 
 class TaskRequest(BaseModel):
     prompt: str

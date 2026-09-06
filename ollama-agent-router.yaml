@@ -44,6 +44,9 @@ router:
   heavyLoadGpuFreeMbThreshold: 0
   defaultTaskType: unknown
   classification:
+    # Use the stronger small chat model for ambiguous task classification.
+    # Explicit tool/file requests are still handled by the orchestrator's
+    # deterministic keyword guard before this model is called.
     mode: heuristic
     classifierTimeoutMs: 1500
 
@@ -115,7 +118,7 @@ models:
     allowWhenBusy: false
 
 routes:
-  triage: [qwen3:0.6b]
+  triage: [qwen3:4b]
   simple_chat: [qwen3:4b]
   summarize: [qwen3:4b]
   code_generate: [qwen2.5-coder:7b]

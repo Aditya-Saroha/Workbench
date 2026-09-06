@@ -72,12 +72,13 @@ app.add_middleware(
 
 # In-memory state store for the hackathon (use Redis/SQLite for production)
 active_tasks: Dict[str, AgentState] = {}
+active_task_handles: Dict[str, asyncio.Task] = {}
 
 @app.post("/api/agent/task")
 async def create_task(request: TaskRequest):
     new_state = AgentState(original_prompt=request.prompt)
     active_tasks[new_state.task_id] = new_state
-    spawn_agent_task(run_agent_loop(new_state))
+    active_task_handles[new_state.task_id] = spawn_agent_task(run_agent_loop(new_state))
     return {"task_id": new_state.task_id, "status": new_state.status}
 
 @app.get("/api/agent/{task_id}/trace")
@@ -92,7 +93,8 @@ async def get_task_trace(task_id: str):
         "current_step": state.current_step_index,
         "plan": [step.dict() for step in state.plan],
         "trace": state.trace_log,
-        "final_deliverable": state.final_deliverable
+        "final_deliverable": state.final_deliverable,
+        "last_tool_output": state.last_tool_output,
     }
 
 @app.post("/api/agent/{task_id}/resume")
@@ -113,5 +115,27 @@ async def resume_task(task_id: str):
     current_step.human_approved = True
     log_trace(state, "System", "Human approval received. Resuming...")
 
-    spawn_agent_task(run_agent_loop(state))
+    active_task_handles[task_id] = spawn_agent_task(run_agent_loop(state))
     return {"message": "Task resumed."}
+
+
+@app.post("/api/agent/{task_id}/cancel")
+async def cancel_task(task_id: str):
+    if task_id not in active_tasks:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    state = active_tasks[task_id]
+    if state.status in {"completed", "failed", "cancelled"}:
+        raise HTTPException(status_code=400, detail=f"Task is already {state.status}.")
+    if state.status == "paused":
+        state.status = "cancelled"
+        log_trace(state, "System", "Task cancelled by user.")
+        return {"message": "Task cancelled."}
+
+    state.status = "cancelled"
+    log_trace(state, "System", "Task cancellation requested by user.")
+    task = active_task_handles.get(task_id)
+    if task and not task.done():
+        task.cancel()
+
+    return {"message": "Task cancelled."}

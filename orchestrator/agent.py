@@ -15,7 +15,7 @@ OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 #   output — a weak model here (e.g. llama3.2:1b) is what caused the
 #   PlanStep(**str) crash originally. Qwen3's dense models were trained with
 #   native tool-calling support, which is why this replaces llama3.2:1b.
-TRIAGE_MODEL = "qwen3:0.6b"
+TRIAGE_MODEL = "qwen3:4b"
 PLANNER_MODEL = "qwen3:8b"
 
 # TRIAGE_MODEL is fast but unreliable on short, imperative requests that
@@ -217,17 +217,23 @@ async def classify_intent(prompt: str) -> str:
     i.e. requests that don't name a tool outright, where SIMPLE vs COMPLEX
     is a genuine judgment call (multi-step reasoning, ambiguous phrasing).
     """
-    sys_prompt = f"""You are a strict routing classifier for an agent that has these tools:
+    sys_prompt = f"""You are the routing classifier for a local AI workbench.
+
+Classify the user's request as exactly one label: SIMPLE or COMPLEX.
+
+Available tools:
 - search_rag: search the user's uploaded documents
 - read_file: read a specific file
 - python_sandbox: execute code
 - write_docx: generate a Word document
 
-Output exactly one word — SIMPLE or COMPLEX — with no punctuation or explanation.
+Return COMPLEX when the request mentions a file, document, uploaded knowledge,
+code execution, calculations that require running code, report/document
+generation, data lookup, multi-step work, or any action using a tool.
+Return SIMPLE only for a self-contained conversational question, explanation,
+translation, brainstorming request, greeting, or opinion that needs no tool.
 
-COMPLEX: the request needs any of the tools above, or needs multiple steps to finish.
-SIMPLE: a greeting, opinion, or question answerable directly from general knowledge —
-no file, document, code execution, or generation involved.
+Output exactly one word and nothing else: SIMPLE or COMPLEX.
 
 Examples:
 "hi" -> SIMPLE
@@ -249,7 +255,10 @@ Classification:"""
     except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.ConnectError) as e:
         raise RuntimeError(f"classify_intent: router call failed ({e})") from e
 
-    return "COMPLEX" if "COMPLEX" in response.upper() else "SIMPLE"
+    label = response.strip().upper().split()[0] if response.strip() else ""
+    if label in {"SIMPLE", "COMPLEX"}:
+        return label
+    raise RuntimeError(f"classify_intent: invalid classifier output {response!r}")
 
 
 async def is_model_loaded(model: str = PLANNER_MODEL) -> bool:
@@ -285,8 +294,8 @@ async def run_agent_loop(state: AgentState):
                 try:
                     intent = await classify_intent(state.original_prompt)
                 except RuntimeError as e:
-                    log_trace(state, "Router", f"Router call failed ({e}); defaulting to SIMPLE.")
-                    intent = "SIMPLE"
+                    log_trace(state, "Router", f"Router call failed ({e}); defaulting to COMPLEX.")
+                    intent = "COMPLEX"
 
             if intent == "SIMPLE":
                 log_trace(state, "Router", "Classified as simple conversational task. Bypassing planner.")
@@ -356,6 +365,7 @@ async def run_agent_loop(state: AgentState):
                     observation = await asyncio.get_event_loop().run_in_executor(
                         None, execute_tool, current_step.tool_name, current_step.tool_args
                     )
+                state.last_tool_output = str(observation)
                 log_trace(
                     state, "Tool Output",
                     str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation)

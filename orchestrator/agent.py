@@ -41,6 +41,7 @@ DOCUMENT_QUERY_KEYWORDS = (
     "attached document", "uploaded file", "uploaded document", "my document",
     "my documents", "knowledge base", "from the document", "in the document",
 )
+VALID_TOOL_NAMES = {"direct_chat", "search_rag", "read_file", "python_sandbox", "write_docx"}
 
 
 def _looks_complex(prompt: str) -> bool:
@@ -188,6 +189,20 @@ def normalize_plan_steps(raw_steps: list, state: AgentState) -> list[dict]:
             log_trace(state, "Planner", f"Dropping step {i} with no tool_name: {item!r}")
             continue
 
+        tool_name = str(item["tool_name"]).strip().lower()
+        if tool_name not in VALID_TOOL_NAMES:
+            fallback_tool = "search_rag" if _needs_document_search(state.original_prompt) else "direct_chat"
+            fallback_args = {"query": state.original_prompt} if fallback_tool == "search_rag" else {"prompt": state.original_prompt}
+            log_trace(
+                state,
+                "Planner",
+                f"Unsupported tool '{item['tool_name']}' in step {i}; using {fallback_tool} fallback.",
+            )
+            item["tool_name"] = fallback_tool
+            item["tool_args"] = fallback_args
+        else:
+            item["tool_name"] = tool_name
+
         normalized.append(item)
 
     return normalized
@@ -304,8 +319,11 @@ async def run_agent_loop(state: AgentState):
                 try:
                     intent = await classify_intent(state.original_prompt)
                 except RuntimeError as e:
-                    log_trace(state, "Router", f"Router call failed ({e}); defaulting to COMPLEX.")
-                    intent = "COMPLEX"
+                    # A classifier failure should not send ordinary chat into
+                    # the planner. Only requests that already look like tool
+                    # or document work need the conservative complex fallback.
+                    intent = "COMPLEX" if _looks_complex(state.original_prompt) else "SIMPLE"
+                    log_trace(state, "Router", f"Router call failed ({e}); defaulting to {intent}.")
 
             if intent == "SIMPLE":
                 log_trace(state, "Router", "Classified as simple conversational task. Bypassing planner.")

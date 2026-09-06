@@ -85,7 +85,12 @@ async def call_ollama(
     if format:
         payload["response_format"] = {"type": "json_object"}
     if options:
-        payload["options"] = options
+        if "temperature" in options:
+            payload["temperature"] = options["temperature"]
+        if "num_predict" in options:
+            payload["max_tokens"] = options["num_predict"]
+        if "stop" in options:
+            payload["stop"] = options["stop"]
 
     timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:

@@ -2,6 +2,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { uploadDocuments, listDocuments, deleteDocument } from "@/lib/api";
 import {
   ArrowUp, Paperclip, X, Library, CheckCircle2, CircleDashed, Loader2,
@@ -60,6 +64,70 @@ function StepIcon({ status }: { status: string }) {
   if (status === "human_approval") return <CircleDashed className="h-4 w-4 shrink-0 animate-pulse text-amber-500" />;
   if (status === "failed") return <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />;
   return <CircleDashed className="h-4 w-4 shrink-0 text-zinc-300" />;
+}
+
+const markdownComponents: Components = {
+  h1: ({ children }) => <h1 className="mb-3 mt-5 text-lg font-semibold text-zinc-950 first:mt-0">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-2 mt-5 text-base font-semibold text-zinc-950 first:mt-0">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-2 mt-4 text-sm font-semibold text-zinc-950 first:mt-0">{children}</h3>,
+  p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="mb-3 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+  ol: ({ children }) => <ol className="mb-3 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+  li: ({ children }) => <li className="pl-1">{children}</li>,
+  blockquote: ({ children }) => (
+    <blockquote className="my-3 border-l-2 border-indigo-400 bg-indigo-50/70 px-4 py-2 text-zinc-700">
+      {children}
+    </blockquote>
+  ),
+  a: ({ children, href }) => (
+    <a className="font-medium text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900" href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  ),
+  hr: () => <hr className="my-4 border-zinc-200" />,
+  table: ({ children }) => (
+    <div className="my-3 overflow-x-auto rounded-lg border border-zinc-200">
+      <table className="min-w-full border-collapse text-left text-[12px]">{children}</table>
+    </div>
+  ),
+  th: ({ children }) => <th className="border-b border-zinc-200 bg-zinc-100 px-3 py-2 font-semibold text-zinc-800">{children}</th>,
+  td: ({ children }) => <td className="border-b border-zinc-100 px-3 py-2 align-top last:border-b-0">{children}</td>,
+  code: ({ className, children, ...props }) => {
+    const language = /language-(\w+)/.exec(className ?? "")?.[1];
+    const code = String(children).replace(/\n$/, "");
+
+    if (!language) {
+      return <code className="rounded bg-zinc-200 px-1.5 py-0.5 font-mono text-[12px] text-rose-700" {...props}>{children}</code>;
+    }
+
+    return (
+      <div className="my-3 overflow-hidden rounded-xl border border-zinc-800 bg-[#11161b] shadow-sm">
+        <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+          <span>{language}</span>
+          <span className="text-emerald-400">code</span>
+        </div>
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          PreTag="div"
+          customStyle={{ margin: 0, padding: "1rem", background: "#11161b", fontSize: "12px", lineHeight: 1.7 }}
+          codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
+    );
+  },
+};
+
+function MarkdownOutput({ content }: { content: string }) {
+  return (
+    <div className="markdown-output font-sans text-[13px] leading-relaxed text-zinc-800">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 function TraceLog({ trace, live }: { trace: AgentState["trace"]; live: boolean }) {
@@ -165,7 +233,10 @@ export function ChatPanel() {
       } catch (err) {
         console.error("Trace poll failed", err);
       }
-    }, 1500);
+    // The orchestrator updates final_deliverable for every streamed Ollama
+    // chunk. Poll frequently enough for the answer to appear progressively
+    // while keeping the existing trace-based task protocol.
+    }, 250);
 
     return () => clearInterval(interval);
   }, [activeTaskId, isPolling]);
@@ -421,9 +492,7 @@ export function ChatPanel() {
                     {t.agentState.final_deliverable && (
                       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                         <div className="mb-1.5 text-[11px] text-emerald-700">Result</div>
-                        <div className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-zinc-800">
-                          {t.agentState.final_deliverable}
-                        </div>
+                        <MarkdownOutput content={t.agentState.final_deliverable} />
                       </div>
                     )}
                   </div>

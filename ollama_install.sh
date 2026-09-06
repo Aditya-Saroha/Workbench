@@ -26,7 +26,8 @@ die()  { printf '\033[1;31mERROR:\033[0m %s\n' "$1"; exit 1; }
 
 # --- 0. Sanity checks -------------------------------------------------------
 if [[ "$(uname -s)" != "Darwin" ]]; then
-  die "This script is for macOS only."
+  die "This script is 
+  for macOS only."
 fi
 
 if [[ "$(uname -m)" != "arm64" ]]; then

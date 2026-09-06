@@ -78,6 +78,42 @@ async def call_ollama(
         return response.json()["response"]
 
 
+async def stream_direct_chat(prompt: str, state: AgentState) -> str:
+    """Stream direct-chat tokens into the task state as Ollama produces them.
+
+    The frontend already reads ``final_deliverable`` from the trace endpoint.
+    Updating that field for every received Ollama chunk lets the existing task
+    UI render the answer while it is being generated instead of waiting for
+    the complete response.
+    """
+    payload = {
+        "model": DIRECT_CHAT_MODEL,
+        "prompt": prompt,
+        "stream": True,
+        "keep_alive": "3m",
+    }
+    timeout = httpx.Timeout(connect=10.0, read=240.0, write=10.0, pool=10.0)
+    accumulated = ""
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        async with client.stream("POST", OLLAMA_URL, json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+
+                chunk = json.loads(line)
+                token = chunk.get("response", "")
+                if token:
+                    accumulated += token
+                    state.final_deliverable = accumulated
+
+                if chunk.get("done"):
+                    break
+
+    return accumulated
+
+
 def extract_json_from_llm(text: str) -> list:
     """
     Safely extract a JSON array from LLM output, ignoring markdown fences.
@@ -309,9 +345,17 @@ async def run_agent_loop(state: AgentState):
                 return
 
             try:
-                observation = await asyncio.get_event_loop().run_in_executor(
-                    None, execute_tool, current_step.tool_name, current_step.tool_args
-                )
+                if current_step.tool_name == "direct_chat":
+                    # Keep this call async so each Ollama token can update the
+                    # state immediately. The UI receives those partial updates
+                    # through the trace endpoint while the task is executing.
+                    observation = await stream_direct_chat(
+                        current_step.tool_args.get("prompt", state.original_prompt), state
+                    )
+                else:
+                    observation = await asyncio.get_event_loop().run_in_executor(
+                        None, execute_tool, current_step.tool_name, current_step.tool_args
+                    )
                 log_trace(
                     state, "Tool Output",
                     str(observation)[:200] + "..." if len(str(observation)) > 200 else str(observation)

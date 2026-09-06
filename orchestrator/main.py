@@ -33,12 +33,21 @@ async def _prewarm_model():
         for model in models_to_warm:
             for attempt in range(30):  # retry for up to ~2.5 min per model if Ollama isn't up yet
                 try:
+                    task_type = (
+                        TRIAGE_ROUTE if model == TRIAGE_MODEL
+                        else PLANNER_ROUTE if model == PLANNER_MODEL
+                        else DIRECT_CHAT_ROUTE
+                    )
                     resp = await client.post(
                         "http://127.0.0.1:11435/v1/chat/completions",
                         json={
-                            "model": TRIAGE_ROUTE if model == TRIAGE_MODEL else PLANNER_ROUTE if model == PLANNER_MODEL else DIRECT_CHAT_ROUTE,
-                            "messages": [{"role": "user", "content": ""}],
-                            "stream": False,
+                            # ollama-agent-router expects "auto" + a nested
+                            # router.taskType, not the task type as "model"
+                            # itself — see agent.py's call_ollama for the
+                            # same fix and why.
+                            "model": "auto",
+                            "messages": [{"role": "user", "content": "ping"}],
+                            "router": {"taskType": task_type, "mode": "sync", "allowAsync": False},
                         },
                     )
                     resp.raise_for_status()

@@ -82,10 +82,15 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
         if not isinstance(prompt, str) or not prompt.strip():
             return "Error: No valid 'prompt' provided to direct_chat tool."
             
+        # ollama-agent-router routes by "router": {"taskType": ...}, not by
+        # putting the task type in "model" (that field wants "auto" or a
+        # real Ollama model tag). "mode": "sync" + "allowAsync": False keeps
+        # this from ever getting back an async job envelope instead of a
+        # normal choices response.
         payload = json.dumps({
-            "model": DIRECT_CHAT_ROUTE,
+            "model": "auto",
             "messages": [{"role": "user", "content": prompt}],
-            "stream": False,
+            "router": {"taskType": DIRECT_CHAT_ROUTE, "mode": "sync", "allowAsync": False},
         }).encode("utf-8")
         req = urllib.request.Request("http://127.0.0.1:11435/v1/chat/completions", data=payload, headers={"Content-Type": "application/json"})
         

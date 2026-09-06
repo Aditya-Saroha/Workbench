@@ -76,15 +76,28 @@ async def call_ollama(
     options: dict | None = None,
     read_timeout: float = 240.0,
 ) -> str:
-    route = TRIAGE_ROUTE if model == TRIAGE_MODEL else PLANNER_ROUTE if model == PLANNER_MODEL else DIRECT_CHAT_ROUTE
+    # ollama-agent-router expects the task type under `router.taskType`,
+    # not crammed into the top-level `model` field — every documented
+    # request in its README uses "model": "auto" + a nested `router`
+    # object. Sending "model": "triage"/"tool_use"/"simple_chat" isn't a
+    # real Ollama model tag, so the router either misroutes it or stalls.
+    # `mode: sync, allowAsync: false` also stops the router from ever
+    # handing back an async job envelope ({"id": ..., "status": "queued"})
+    # in place of a normal `choices` response under queue pressure —
+    # queue.globalMaxConcurrent is 1 in the config, so that's not just
+    # theoretical.
+    task_type = TRIAGE_ROUTE if model == TRIAGE_MODEL else PLANNER_ROUTE if model == PLANNER_MODEL else DIRECT_CHAT_ROUTE
     payload = {
-        "model": route,
+        "model": "auto",
         "messages": [{"role": "user", "content": prompt}],
-        "stream": False,
+        "router": {"taskType": task_type, "mode": "sync", "allowAsync": False},
     }
     if format:
         payload["response_format"] = {"type": "json_object"}
     if options:
+        # "options" is an Ollama-native /api/chat field, not part of this
+        # router's OpenAI-compatible schema. Map the fields we actually use
+        # onto their OpenAI-style equivalents instead.
         if "temperature" in options:
             payload["temperature"] = options["temperature"]
         if "num_predict" in options:
@@ -101,40 +114,33 @@ async def call_ollama(
 
 
 async def stream_direct_chat(prompt: str, state: AgentState) -> str:
-    """Stream direct-chat tokens into the task state as Ollama produces them.
+    """Get the direct-chat response from the router.
 
-    The frontend already reads ``final_deliverable`` from the trace endpoint.
-    Updating that field for every received Ollama chunk lets the existing task
-    UI render the answer while it is being generated instead of waiting for
-    the complete response.
+    NOTE: despite the name, this no longer streams token-by-token.
+    ollama-agent-router's API is a single JSON response wrapped with routing
+    metadata (selected model, timings) that it can only compute once the
+    underlying Ollama call finishes — there's no `stream: true` mode
+    documented or supported. Sending "stream": true was rejected outright
+    (400) rather than degrading gracefully. This does one call and sets
+    `final_deliverable` once, in full. Kept the function name/signature so
+    run_agent_loop doesn't need to change.
     """
     payload = {
-        "model": DIRECT_CHAT_ROUTE,
+        "model": "auto",
         "messages": [{"role": "user", "content": prompt}],
-        "stream": True,
+        "router": {"taskType": DIRECT_CHAT_ROUTE, "mode": "sync", "allowAsync": False},
     }
     timeout = httpx.Timeout(connect=10.0, read=240.0, write=10.0, pool=10.0)
-    accumulated = ""
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream("POST", ROUTER_URL, json=payload) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line or line.startswith(":"):
-                    continue
-                if line.startswith("data:"):
-                    line = line[5:].strip()
-                if line == "[DONE]":
-                    break
+        response = await client.post(ROUTER_URL, json=payload)
+        response.raise_for_status()
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
 
-                chunk = json.loads(line)
-                token = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                if token:
-                    accumulated += token
-                    state.final_deliverable = accumulated
-                    save_state(state)
-
-    return accumulated
+    state.final_deliverable = content
+    save_state(state)
+    return content
 
 
 def extract_json_from_llm(text: str) -> list:

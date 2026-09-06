@@ -82,8 +82,7 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
             return "Error: No valid 'prompt' provided to direct_chat tool."
             
         payload = json.dumps({
-            "model": "auto",
-            "task_type": "simple_chat",
+            "model": DIRECT_CHAT_MODEL,
             "messages": [{"role": "user", "content": prompt}],
             "stream": False,
         }).encode("utf-8")

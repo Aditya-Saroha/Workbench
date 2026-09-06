@@ -73,10 +73,8 @@ async def call_ollama(
     options: dict | None = None,
     read_timeout: float = 240.0,
 ) -> str:
-    task_type = "triage" if model == TRIAGE_MODEL else "tool_use" if model == PLANNER_MODEL else "simple_chat"
     payload = {
-        "model": "auto",
-        "task_type": task_type,
+        "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "stream": False,
     }
@@ -102,8 +100,7 @@ async def stream_direct_chat(prompt: str, state: AgentState) -> str:
     the complete response.
     """
     payload = {
-        "model": "auto",
-        "task_type": "simple_chat",
+        "model": DIRECT_CHAT_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "stream": True,
     }

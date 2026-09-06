@@ -36,8 +36,7 @@ async def _prewarm_model():
                     resp = await client.post(
                         "http://127.0.0.1:11435/v1/chat/completions",
                         json={
-                            "model": "auto",
-                            "task_type": "triage" if model == TRIAGE_MODEL else "simple_chat" if model == DIRECT_CHAT_MODEL else "tool_use",
+                            "model": model,
                             "messages": [{"role": "user", "content": ""}],
                             "stream": False,
                         },

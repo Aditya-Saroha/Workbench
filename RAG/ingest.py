@@ -18,46 +18,59 @@ import docx
 import pandas as pd
 from PIL import Image
 import io
-from config import DOCUMENTS_DIR, CHUNK_SIZE, CHUNK_OVERLAP
-
+import re
+from config import DOCUMENTS_DIR, CHUNK_SIZE, CHUNK_OVERLAP, OCR_MIN_ALPHA_RATIO, OCR_MIN_AVG_WORD_LEN
 
 # ─── Text Extraction ─────────────────────────────────────────────────
 
+def is_poor_extraction(text: str) -> bool:
+    """Quality gate to detect garbled or unusable native PDF extraction."""
+    if not text.strip():
+        return True
+    
+    text_no_space = re.sub(r'\s+', '', text)
+    if not text_no_space:
+        return True
+        
+    alpha_count = sum(1 for c in text_no_space if c.isalpha())
+    ratio = alpha_count / len(text_no_space)
+    
+    words = [w for w in text.split() if w.strip()]
+    if not words:
+        return True
+    avg_word_len = sum(len(w) for w in words) / len(words)
+    
+    if ratio < OCR_MIN_ALPHA_RATIO or avg_word_len < OCR_MIN_AVG_WORD_LEN:
+        return True
+        
+    return False
+
 def extract_text_from_pdf(pdf_path: str) -> list[dict]:
     """
-    Extract text from every page of a PDF. Uses ocrmac as fallback for scanned PDFs.
+    Extract text from every page of a PDF. Uses ocrmac as fallback for scanned
+    PDFs or garbled native extraction.
     """
     filename = os.path.basename(pdf_path)
     pages = []
 
     doc = pymupdf.open(pdf_path)
     
-    total_text_len = 0
-    for page in doc:
-        total_text_len += len(page.get_text("text").strip())
-        
-    use_ocr = False
-    if len(doc) > 0 and (total_text_len / len(doc)) < 50:
-        use_ocr = True
-        print(f"   [OCR Fallback] Insufficient text detected for {filename}. Using OCR.")
-        try:
-            from ocrmac import ocrmac
-        except ImportError:
-            print("   ⚠️ ocrmac not found. Proceeding without OCR.")
-            use_ocr = False
-
     for page_num, page in enumerate(doc, start=1):
-        if use_ocr:
-            from ocrmac import ocrmac
-            pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
-            img_bytes = pix.tobytes("png")
-            pil_img = Image.open(io.BytesIO(img_bytes))
-            annotations = ocrmac.OCR(pil_img).recognize()
-            # ocrmac returns (text, confidence, bbox)
-            text = "\n".join([annot[0] for annot in annotations])
-        else:
-            text = page.get_text("text")  # plain UTF-8 text
-            
+        text = page.get_text("text")  # plain UTF-8 text
+        
+        # Trigger OCR if text is practically empty OR if it fails the quality gate
+        if len(text.strip()) < 50 or is_poor_extraction(text):
+            try:
+                from ocrmac import ocrmac
+                print(f"   [OCR Fallback] Poor/insufficient text on page {page_num} of {filename}. Using OCR.")
+                pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
+                img_bytes = pix.tobytes("png")
+                pil_img = Image.open(io.BytesIO(img_bytes))
+                annotations = ocrmac.OCR(pil_img).recognize()
+                text = "\n".join([annot[0] for annot in annotations])
+            except ImportError:
+                print("   ⚠️ ocrmac not found. Proceeding with native extraction.")
+                
         if text.strip():  # skip blank pages
             pages.append({
                 "text": text.strip(),
@@ -126,12 +139,36 @@ def extract_text_from_xlsx(xlsx_path: str) -> list[dict]:
     filename = os.path.basename(xlsx_path)
     pages = []
     
+    col_mapping = {
+        "sp_code": "Specialization",
+        "roll_no": "Roll number",
+        "fullname": "Student name",
+        "semester": "Semester"
+    }
+    
     try:
         excel_file = pd.ExcelFile(xlsx_path)
         for sheet_name in excel_file.sheet_names:
             df = excel_file.parse(sheet_name).dropna(how='all')
             if df.empty:
                 continue
+                
+            # Try to find the actual header row (often not the first row in messy exports)
+            # We look for a row containing typical column names we care about
+            header_idx = -1
+            for idx, row in df.head(10).iterrows():
+                row_str = " ".join([str(x).lower() for x in row.values])
+                if "sp_code" in row_str or "roll_no" in row_str or "fullname" in row_str:
+                    header_idx = idx
+                    break
+                    
+            if header_idx != -1:
+                # Re-parse using the correct header
+                df.columns = [str(c).strip() for c in df.loc[header_idx].values]
+                # Filter out rows up to and including the header row
+                # Since df index might not be positional, we find the integer location
+                pos_idx = df.index.get_loc(header_idx)
+                df = df.iloc[pos_idx + 1:]
                 
             sheet_lines = [f"--- Sheet: {sheet_name} ---"]
             cols = [str(c) for c in df.columns]
@@ -140,14 +177,18 @@ def extract_text_from_xlsx(xlsx_path: str) -> list[dict]:
                 row_vals = []
                 for col_name, val in zip(cols, row.values):
                     if pd.notna(val) and str(val).strip():
-                        if "Unnamed:" not in col_name:
-                            row_vals.append(f"{col_name}: {val}")
+                        clean_col = col_name.strip().lower()
+                        mapped_col = col_mapping.get(clean_col, col_name)
+                        
+                        if "unnamed:" not in mapped_col.lower():
+                            row_vals.append(f"{mapped_col}: {val}")
                         else:
                             row_vals.append(str(val))
                 if row_vals:
-                    sheet_lines.append(" - " + ", ".join(row_vals))
+                    row_block = "\n\n".join(row_vals)
+                    sheet_lines.append(row_block + "\n")
                     
-            text = "\n".join(sheet_lines)
+            text = "\n\n".join(sheet_lines)
             if text.strip():
                 pages.append({
                     "text": text.strip(),
@@ -237,6 +278,7 @@ def ingest_all(directory: str = DOCUMENTS_DIR) -> list[dict]:
             
         print(f"   → {len(pages)} logical page(s) with text")
 
+        doc_chunk_index = 0
         for page_info in pages:
             # We pop standard fields and pass any remaining as kwargs (like sheet)
             text = page_info.pop("text")
@@ -249,6 +291,11 @@ def ingest_all(directory: str = DOCUMENTS_DIR) -> list[dict]:
                 page=page,
                 **page_info
             )
+            
+            for chunk in page_chunks:
+                chunk["chunk_index"] = doc_chunk_index
+                doc_chunk_index += 1
+                
             all_chunks.extend(page_chunks)
 
         print(f"   → {sum(1 for c in all_chunks if c['source'] == file)} chunk(s) created")

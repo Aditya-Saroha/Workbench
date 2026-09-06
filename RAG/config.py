@@ -28,6 +28,16 @@ CHUNK_OVERLAP = 100
 # all-MiniLM-L6-v2: 80 MB, 384-dim vectors, excellent quality/speed ratio.
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
+# ─── Context Expansion ─────────────────────────────────────────────────
+CONTEXT_EXPANSION_ENABLED = True
+CONTEXT_EXPANSION_CHUNKS = 2     # Number of neighboring chunks to fetch (e.g. 2 means up to 2 before and 2 after)
+MAX_CONTEXT_CHARS = 4000         # Hard bound for the size of any single expanded context block
+MIN_RELEVANCE_SCORE = 0.3        # Minimum score required to keep a chunk after reranking
+
+# ─── OCR Quality Gate ────────────────────────────────────────────────
+OCR_MIN_ALPHA_RATIO = 0.4        # Trigger OCR if alphabetic chars are < 40% of non-whitespace
+OCR_MIN_AVG_WORD_LEN = 2.5       # Trigger OCR if average word length is suspiciously short
+
 # ─── Retrieval (will be used in Phase 2) ─────────────────────────────
 TOP_K = 5  # number of chunks to retrieve per query
 

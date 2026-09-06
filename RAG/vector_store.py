@@ -83,7 +83,7 @@ def build_index(chunks: list[dict]) -> faiss.Index:
     # so retrieval can return source, page, AND text without re-reading PDFs)
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(chunks, f, indent=2, ensure_ascii=False)
-    print(f"💾 Metadata saved to {META_PATH}")
+    print(f"💾 Metadata saved to {meta_path}")
 
     # Build BM25 index for hybrid retrieval (if reranking is enabled)
     if RERANKING_ENABLED:
@@ -116,10 +116,15 @@ def load_index() -> tuple[faiss.Index, list[dict]]:
     with open(meta_path, "r", encoding="utf-8") as f:
         chunks_meta = json.load(f)
 
-    print(f"📂 Loaded FAISS index: {index.ntotal} vectors")
-    print(f"📂 Loaded metadata: {len(chunks_meta)} chunks")
     return index, chunks_meta
 
+def get_all_chunks() -> list[dict]:
+    """Helper to get all chunks metadata without loading the FAISS index."""
+    _, meta_path = _paths()
+    if not os.path.exists(meta_path):
+        return []
+    with open(meta_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 # ─── Search ───────────────────────────────────────────────────────────
 

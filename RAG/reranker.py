@@ -147,6 +147,7 @@ def reciprocal_rank_fusion(
                 "text": r["text"],
                 "source": r["source"],
                 "page": r["page"],
+                "chunk_index": r.get("chunk_index"),
                 "rrf_score": 0.0,
                 "dense_score": r["score"],
                 "bm25_score": 0.0,
@@ -161,6 +162,7 @@ def reciprocal_rank_fusion(
                 "text": r["text"],
                 "source": r["source"],
                 "page": r["page"],
+                "chunk_index": r.get("chunk_index"),
                 "rrf_score": 0.0,
                 "dense_score": 0.0,
                 "bm25_score": 0.0,
@@ -228,6 +230,7 @@ def rerank(query: str, candidates: list[dict], top_k: int) -> list[dict]:
             "source": c["source"],
             "page": c["page"],
             "score": round(c["score"], 4),
+            "chunk_index": c.get("chunk_index"),
         })
 
     return results

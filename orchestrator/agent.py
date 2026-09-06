@@ -5,8 +5,9 @@ import asyncio
 from typing import Dict, Any
 from .models import AgentState, PlanStep
 from .tools import execute_tool, DIRECT_CHAT_MODEL
+from .persistence import save_state
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+ROUTER_URL = "http://127.0.0.1:11435/v1/chat/completions"
 
 # Split into two models rather than one:
 # - TRIAGE_MODEL: near-instant SIMPLE/COMPLEX classification. Small and fast.
@@ -62,6 +63,7 @@ def log_trace(state: AgentState, source: str, message: str):
         "source": source,
         "message": message
     })
+    save_state(state)
 
 
 async def call_ollama(
@@ -71,22 +73,24 @@ async def call_ollama(
     options: dict | None = None,
     read_timeout: float = 240.0,
 ) -> str:
+    task_type = "triage" if model == TRIAGE_MODEL else "tool_use" if model == PLANNER_MODEL else "simple_chat"
     payload = {
-        "model": model,
-        "prompt": prompt,
+        "model": "auto",
+        "task_type": task_type,
+        "messages": [{"role": "user", "content": prompt}],
         "stream": False,
-        "keep_alive": "3m",  # matches router config; avoid two models resident at once on 16GB
     }
     if format:
-        payload["format"] = format
+        payload["response_format"] = {"type": "json_object"}
     if options:
         payload["options"] = options
 
     timeout = httpx.Timeout(connect=10.0, read=read_timeout, write=10.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(OLLAMA_URL, json=payload)
+        response = await client.post(ROUTER_URL, json=payload)
         response.raise_for_status()
-        return response.json()["response"]
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
 
 
 async def stream_direct_chat(prompt: str, state: AgentState) -> str:
@@ -98,29 +102,31 @@ async def stream_direct_chat(prompt: str, state: AgentState) -> str:
     the complete response.
     """
     payload = {
-        "model": DIRECT_CHAT_MODEL,
-        "prompt": prompt,
+        "model": "auto",
+        "task_type": "simple_chat",
+        "messages": [{"role": "user", "content": prompt}],
         "stream": True,
-        "keep_alive": "3m",
     }
     timeout = httpx.Timeout(connect=10.0, read=240.0, write=10.0, pool=10.0)
     accumulated = ""
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream("POST", OLLAMA_URL, json=payload) as response:
+        async with client.stream("POST", ROUTER_URL, json=payload) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
-                if not line:
+                if not line or line.startswith(":"):
                     continue
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                if line == "[DONE]":
+                    break
 
                 chunk = json.loads(line)
-                token = chunk.get("response", "")
+                token = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
                 if token:
                     accumulated += token
                     state.final_deliverable = accumulated
-
-                if chunk.get("done"):
-                    break
+                    save_state(state)
 
     return accumulated
 

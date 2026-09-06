@@ -81,13 +81,18 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
         if not isinstance(prompt, str) or not prompt.strip():
             return "Error: No valid 'prompt' provided to direct_chat tool."
             
-        payload = json.dumps({"model": DIRECT_CHAT_MODEL, "prompt": prompt, "stream": False}).encode("utf-8")
-        req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=payload, headers={"Content-Type": "application/json"})
+        payload = json.dumps({
+            "model": "auto",
+            "task_type": "simple_chat",
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        }).encode("utf-8")
+        req = urllib.request.Request("http://127.0.0.1:11435/v1/chat/completions", data=payload, headers={"Content-Type": "application/json"})
         
         try:
             with urllib.request.urlopen(req, timeout=45) as response:
                 result = json.loads(response.read().decode("utf-8"))
-                return result.get("response", "No response generated.")
+                return result.get("choices", [{}])[0].get("message", {}).get("content", "No response generated.")
         except Exception as e:
             return f"Error: Failed to reach Ollama via direct_chat: {str(e)}"
             

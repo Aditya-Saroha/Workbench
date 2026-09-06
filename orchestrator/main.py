@@ -8,6 +8,7 @@ import asyncio
 from .models import AgentState, TaskRequest
 from .agent import run_agent_loop, log_trace, TRIAGE_MODEL, PLANNER_MODEL
 from .tools import DIRECT_CHAT_MODEL
+from .persistence import initialize, load_states, list_sessions as persisted_sessions, save_state
 
 app = FastAPI(title="MRPL Agentic Workbench API")
 
@@ -33,12 +34,12 @@ async def _prewarm_model():
             for attempt in range(30):  # retry for up to ~2.5 min per model if Ollama isn't up yet
                 try:
                     resp = await client.post(
-                        "http://127.0.0.1:11434/api/generate",
+                        "http://127.0.0.1:11435/v1/chat/completions",
                         json={
-                            "model": model,
-                            "prompt": "",
+                            "model": "auto",
+                            "task_type": "triage" if model == TRIAGE_MODEL else "simple_chat" if model == DIRECT_CHAT_MODEL else "tool_use",
+                            "messages": [{"role": "user", "content": ""}],
                             "stream": False,
-                            "keep_alive": "3m",
                         },
                     )
                     resp.raise_for_status()
@@ -70,8 +71,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory state store for the hackathon (use Redis/SQLite for production)
-active_tasks: Dict[str, AgentState] = {}
+# Active handles remain in memory; task state is durable in SQLite.
+initialize()
+active_tasks: Dict[str, AgentState] = {state.task_id: state for state in load_states()}
 active_task_handles: Dict[str, asyncio.Task] = {}
 session_activity: Dict[str, float] = {}
 
@@ -81,6 +83,7 @@ async def create_task(request: TaskRequest):
     active_tasks[new_state.task_id] = new_state
     import time
     session_activity[request.session_id] = time.time()
+    save_state(new_state)
     active_task_handles[new_state.task_id] = spawn_agent_task(run_agent_loop(new_state))
     return {"task_id": new_state.task_id, "status": new_state.status}
 
@@ -122,6 +125,7 @@ async def resume_task(task_id: str, x_session_id: str = Header("default")):
     current_step = state.plan[state.current_step_index]
     current_step.human_approved = True
     log_trace(state, "System", "Human approval received. Resuming...")
+    save_state(state)
 
     active_task_handles[task_id] = spawn_agent_task(run_agent_loop(state))
     return {"message": "Task resumed."}
@@ -140,10 +144,12 @@ async def cancel_task(task_id: str, x_session_id: str = Header("default")):
     if state.status == "paused":
         state.status = "cancelled"
         log_trace(state, "System", "Task cancelled by user.")
+        save_state(state)
         return {"message": "Task cancelled."}
 
     state.status = "cancelled"
     log_trace(state, "System", "Task cancellation requested by user.")
+    save_state(state)
     task = active_task_handles.get(task_id)
     if task and not task.done():
         task.cancel()
@@ -154,13 +160,16 @@ async def cancel_task(task_id: str, x_session_id: str = Header("default")):
 @app.get("/api/sessions")
 async def list_sessions():
     import time
-    sessions = set(session_activity)
-    sessions.update(state.session_id for state in active_tasks.values())
+    persisted = persisted_sessions()
+    sessions = {item["id"]: item["updated_at"] for item in persisted}
+    sessions.update({session_id: updated_at for session_id, updated_at in session_activity.items()})
+    for state in active_tasks.values():
+        sessions.setdefault(state.session_id, time.time())
     if not sessions:
-        sessions.add("default")
+        sessions["default"] = time.time()
     return {
         "sessions": [
-            {"id": session_id, "updated_at": session_activity.get(session_id, time.time())}
-            for session_id in sorted(sessions)
+            {"id": session_id, "updated_at": updated_at}
+            for session_id, updated_at in sorted(sessions.items(), key=lambda item: item[1], reverse=True)
         ]
     }

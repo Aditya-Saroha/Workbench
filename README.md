@@ -13,6 +13,11 @@ LIAMA AI Workbench is a local, multi-service AI application for document-grounde
 
 The intended deployment is local: the UI, APIs, indexes, models, and sandbox are run on the developer machine.
 
+The orchestrator persists task states and session activity in SQLite at
+`data/workbench.sqlite3`. Model requests from the orchestrator go through the
+agent router at `127.0.0.1:11435`; the router remains the only component that
+talks to Ollama at `127.0.0.1:11434`.
+
 Each browser workspace has a session ID stored in browser local storage. The
 session ID is forwarded through the Next.js proxy to the orchestrator and RAG
 service, so tasks, uploads, indexes, and document lists are isolated by
@@ -57,7 +62,8 @@ There are two local model paths:
 1. **UI chat/status:** `client_ui` proxies to the agent router at `127.0.0.1:11435`; the router connects to Ollama at `127.0.0.1:11434`.
 2. **Agent tasks:** `orchestrator` calls Ollama directly at `127.0.0.1:11434` for triage, planning, evaluation, and direct chat. Its RAG and sandbox tools are imported in-process.
 
-The orchestrator currently does not route its planner or critic calls through the agent router.
+The orchestrator routes triage, planning, critic, and direct-chat requests
+through the agent router's OpenAI-compatible `/v1/chat/completions` endpoint.
 
 | Component | Runtime | Default port | Responsibility |
 |---|---|---:|---|
@@ -199,7 +205,11 @@ initializing → planning → executing → completed
                               └── write_docx → paused → approval → executing
 ```
 
-`AgentState`, `PlanStep`, and `TaskRequest` are defined in `models.py`. Task state is held in the process-local `active_tasks` dictionary. Restarting the service loses active tasks and traces.
+`AgentState`, `PlanStep`, and `TaskRequest` are defined in `models.py`. Active
+handles remain in memory, while task snapshots and session activity are stored
+in SQLite. Completed and paused task records survive an orchestrator restart;
+currently running asyncio handles must still be resumed or recreated by the
+application after a process restart.
 
 ### Intent routing
 
@@ -779,6 +789,7 @@ SIH_AI_Workbench/
 - Session-specific chunk metadata: `RAG/sessions/<session-id>/data/chunks_meta.json`.
 - Session-specific BM25 index: `RAG/sessions/<session-id>/data/bm25.pkl`.
 - Session-specific generated DOCX files: `RAG/sessions/<session-id>/outputs/`.
+- Durable orchestrator database: `data/workbench.sqlite3`.
 
 ### In-memory data
 
@@ -793,7 +804,6 @@ SIH_AI_Workbench/
 
 - `read_file` is intentionally restricted to the workspace and uploaded session documents.
 - The UI document list is reconciled against the RAG service rather than treated as permanent client state.
-- The orchestrator calls Ollama directly instead of using the router.
 - There is no authentication, authorization, or durable task queue.
 - The RAG service is local and rebuild-oriented.
 - OCR depends on optional `ocrmac` availability.

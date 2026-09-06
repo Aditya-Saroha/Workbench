@@ -2,8 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getStatus, StatusResponse } from "@/lib/api";
-import { ShieldCheck, Circle } from "lucide-react";
+import { getStatus, listSessions, StatusResponse } from "@/lib/api";
+import { getSessionId, setSessionId, useSessionId } from "@/lib/session";
+import { ShieldCheck, Circle, Plus } from "lucide-react";
 
 /**
  * Design tokens — shared across status-rail / chat-panel / context-panel:
@@ -19,6 +20,8 @@ import { ShieldCheck, Circle } from "lucide-react";
 
 export function StatusRail() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
+  const [sessions, setSessions] = useState<{ id: string; updated_at: number }[]>([]);
+  const activeSession = useSessionId();
 
   useEffect(() => {
     const poll = () => getStatus().then(setStatus).catch(() => {});
@@ -26,6 +29,19 @@ export function StatusRail() {
     const id = setInterval(poll, 8000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const refresh = () => listSessions().then((result) => setSessions(result.sessions ?? [])).catch(() => {});
+    refresh();
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  function newSession() {
+    const sessionId = `session-${crypto.randomUUID()}`;
+    setSessionId(sessionId);
+    setSessions((current) => [{ id: sessionId, updated_at: Date.now() / 1000 }, ...current.filter((s) => s.id !== sessionId)]);
+  }
 
   const models = (status?.models as any)?.models as
     | { name: string; purpose?: string[] }[]
@@ -42,6 +58,27 @@ export function StatusRail() {
             <div className="text-sm font-medium text-emerald-900">Runs entirely on this machine</div>
             <div className="mt-0.5 text-[13px] leading-snug text-emerald-700">Nothing leaves your device</div>
           </div>
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-2.5 flex items-center justify-between text-[11px] text-zinc-500">
+          <span>Sessions</span>
+          <button onClick={newSession} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900" title="New session" aria-label="New session">
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
+          {(sessions.length ? sessions : [{ id: getSessionId(), updated_at: Date.now() / 1000 }]).map((session) => (
+            <button
+              key={session.id}
+              onClick={() => setSessionId(session.id)}
+              className={`truncate rounded-lg border px-3 py-2 text-left font-sans text-[12px] ${session.id === activeSession ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"}`}
+              title={session.id}
+            >
+              {session.id.replace(/^session-/, "").slice(0, 18)}
+            </button>
+          ))}
         </div>
       </div>
 

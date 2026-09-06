@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
 
     const res = await fetch(`${ORCHESTRATOR_URL}/api/agent/${taskId}/resume`, {
       method: "POST",
+      headers: { "x-session-id": req.headers.get("x-session-id") ?? "default" },
     });
 
     if (!res.ok) {

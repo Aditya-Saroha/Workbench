@@ -4,6 +4,10 @@ import sys
 import os
 import urllib.request
 import urllib.error
+import re
+from pathlib import Path
+from docx import Document
+from docx.shared import Pt
 
 # Add RAG folder to path
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -22,6 +26,37 @@ except ImportError as e:
 # a stale copy in save_from_git/.
 DIRECT_CHAT_MODEL = "qwen3:4b"
 
+PROJECT_ROOT = Path(root_dir)
+SESSION_OUTPUTS = PROJECT_ROOT / "RAG" / "sessions"
+
+
+def _safe_read_path(filepath: str, session_id: str) -> Path:
+    requested = Path(filepath)
+    candidates = []
+    if not requested.is_absolute():
+        candidates.append(PROJECT_ROOT / requested)
+        candidates.append(SESSION_OUTPUTS / _safe_session_id(session_id) / "documents" / requested.name)
+    else:
+        candidates.append(requested)
+
+    blocked_parts = {".git", ".venv", "node_modules", "__pycache__"}
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if any(part in blocked_parts for part in resolved.parts):
+            continue
+        try:
+            resolved.relative_to(PROJECT_ROOT.resolve())
+        except ValueError:
+            continue
+        if resolved.is_file():
+            return resolved
+
+    raise FileNotFoundError(f"File not found in the allowed workspace: {filepath}")
+
+
+def _safe_session_id(session_id: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_-]", "-", session_id or "default")[:80] or "default"
+
 # Add project root for sandbox package (root_dir already computed above)
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
@@ -33,7 +68,7 @@ except ImportError as e:
     run_sandboxed = None
 
 
-def execute_tool(tool_name: str, tool_args: dict) -> str:
+def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -> str:
     """Dispatcher for all agent tools. Handles validation, size limits, and robust errors."""
     
     # 1. Structural Validation
@@ -62,10 +97,10 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:
             return "Error: No valid 'query' string provided to search_rag tool."
             
         if not query_rag: 
-            return f"[MOCK] RAG results for: {query}"
+            return "Error: RAG search is unavailable. Start the RAG service or check its import dependencies."
             
         try:
-            result = query_rag(query, top_k=5)
+            result = query_rag(query, top_k=5, session_id=session_id)
             contexts = result.get("context", [])
             if not contexts: 
                 return f"No relevant documents found for query: '{query}'"
@@ -89,7 +124,14 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:
         filepath = tool_args.get("filepath")
         if not isinstance(filepath, str) or not filepath.strip():
             return "Error: No valid 'filepath' string provided to read_file tool."
-        return f"[MOCK] Contents of {filepath}"
+        try:
+            path = _safe_read_path(filepath, session_id)
+            content = path.read_text(encoding="utf-8", errors="replace")
+            if len(content) > 500_000:
+                content = content[:500_000] + "\n... [TRUNCATED at 500KB]"
+            return f"File: {path.relative_to(PROJECT_ROOT)}\n\n{content}"
+        except Exception as e:
+            return f"Error: could not read file: {e}"
         
     elif tool_name == "python_sandbox":
         code = tool_args.get("code")
@@ -112,7 +154,22 @@ def execute_tool(tool_name: str, tool_args: dict) -> str:
         filename = tool_args.get("filename")
         if not isinstance(filename, str) or not filename.strip():
             return "Error: No valid 'filename' string provided to write_docx tool."
-        return f"[MOCK] Successfully saved to {filename}"
+        safe_name = Path(filename).name
+        if not safe_name.lower().endswith(".docx"):
+            safe_name += ".docx"
+        output_dir = SESSION_OUTPUTS / _safe_session_id(session_id) / "outputs"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / safe_name
+
+        document = Document()
+        title = tool_args.get("title")
+        content = tool_args.get("content", tool_args.get("body", ""))
+        if title:
+            document.add_heading(str(title), level=1)
+        for paragraph in str(content).split("\n\n"):
+            document.add_paragraph(paragraph.strip())
+        document.save(output_path)
+        return f"DOCX created: {output_path.relative_to(PROJECT_ROOT)}"
         
     else:
         # Unknown tool (malformed LLM output or hallucination)

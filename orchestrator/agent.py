@@ -37,7 +37,7 @@ COMPLEX_KEYWORDS = (
     "read_file", "read the file", "read this file", "read the document",
 )
 DOCUMENT_QUERY_KEYWORDS = (
-    ".pdf", ".docx", ".xlsx", "problem statement", "attached file",
+    ".pdf", ".docx", ".xlsx", "pdf", "docx", "xlsx", "problem statement", "attached file",
     "attached document", "uploaded file", "uploaded document", "my document",
     "my documents", "knowledge base", "from the document", "in the document",
 )
@@ -383,7 +383,7 @@ async def run_agent_loop(state: AgentState):
                     )
                 else:
                     observation = await asyncio.get_event_loop().run_in_executor(
-                        None, execute_tool, current_step.tool_name, current_step.tool_args
+                        None, execute_tool, current_step.tool_name, current_step.tool_args, state.session_id
                     )
                 state.last_tool_output = str(observation)
                 if current_step.tool_name == "search_rag":

@@ -30,16 +30,18 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
 from config import (
-    DATA_DIR,
     RERANKER_MODEL,
     CANDIDATE_POOL_SIZE,
     BM25_WEIGHT,
     DENSE_WEIGHT,
     RERANKING_ENABLED,
 )
+from session import data_dir
 
 # ─── File paths ───────────────────────────────────────────────────────
-BM25_PATH = os.path.join(DATA_DIR, "bm25.pkl")
+def _bm25_path():
+    os.makedirs(data_dir(), exist_ok=True)
+    return os.path.join(data_dir(), "bm25.pkl")
 
 # ─── Module-level cache ──────────────────────────────────────────────
 _cross_encoder = None
@@ -67,10 +69,10 @@ def build_bm25(chunks: list[dict]) -> None:
     tokenized_corpus = [_tokenize(c["text"]) for c in chunks]
     bm25 = BM25Okapi(tokenized_corpus)
 
-    with open(BM25_PATH, "wb") as f:
+    with open(_bm25_path(), "wb") as f:
         pickle.dump({"bm25": bm25, "chunks": chunks}, f)
 
-    print(f"💾 BM25 index saved to {BM25_PATH}")
+    print(f"💾 BM25 index saved to {_bm25_path()}")
 
 
 def _load_bm25() -> tuple[BM25Okapi, list[dict]]:
@@ -80,12 +82,13 @@ def _load_bm25() -> tuple[BM25Okapi, list[dict]]:
     if _bm25_index is not None:
         return _bm25_index, _bm25_meta
 
-    if not os.path.exists(BM25_PATH):
+    bm25_path = _bm25_path()
+    if not os.path.exists(bm25_path):
         raise FileNotFoundError(
-            f"No BM25 index found at {BM25_PATH}. Run build_bm25() first."
+            f"No BM25 index found at {bm25_path}. Run build_bm25() first."
         )
 
-    with open(BM25_PATH, "rb") as f:
+    with open(bm25_path, "rb") as f:
         data = pickle.load(f)
 
     _bm25_index = data["bm25"]

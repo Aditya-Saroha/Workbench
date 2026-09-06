@@ -17,6 +17,7 @@ class PlanStep(BaseModel):
 
 class AgentState(BaseModel):
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str = "default"
     original_prompt: str
     plan: List[PlanStep] = []
     current_step_index: int = 0
@@ -27,3 +28,4 @@ class AgentState(BaseModel):
 
 class TaskRequest(BaseModel):
     prompt: str
+    session_id: str = "default"

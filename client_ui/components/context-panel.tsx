@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { queryRag, listDocuments, deleteDocument, RagResponse } from "@/lib/api";
+import { useSessionId } from "@/lib/session";
 import { FileText, File, Trash2, Check, X, Loader2 } from "lucide-react";
 
 const SEARCH_PHRASES = [
@@ -30,6 +31,7 @@ export function ContextPanel() {
   const [filesError, setFilesError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const sessionId = useSessionId();
 
   const loadingPhrase = useRotatingPhrase(pending, SEARCH_PHRASES);
 
@@ -45,6 +47,12 @@ export function ContextPanel() {
       window.removeEventListener("focus", refreshOnFocus);
     };
   }, []);
+
+  useEffect(() => {
+    setResult(null);
+    setFiles([]);
+    refreshFiles();
+  }, [sessionId]);
 
   async function refreshFiles() {
     const res = await listDocuments();

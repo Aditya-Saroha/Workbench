@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(`${RAG_URL}/query`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-session-id": req.headers.get("x-session-id") ?? "default" },
       body: JSON.stringify(body),
     });
 

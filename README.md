@@ -1,6 +1,6 @@
-# SIH AI Workbench
+# LIAMA AI Workbench
 
-SIH AI Workbench is a local, multi-service AI application for document-grounded chat, agentic task execution, local model routing, and isolated Python execution.
+LIAMA AI Workbench is a local, multi-service AI application for document-grounded chat, agentic task execution, local model routing, and isolated Python execution.
 
 ## Components
 
@@ -12,6 +12,11 @@ SIH AI Workbench is a local, multi-service AI application for document-grounded 
 - `start.ps1` / `start.sh`: Development startup scripts.
 
 The intended deployment is local: the UI, APIs, indexes, models, and sandbox are run on the developer machine.
+
+Each browser workspace has a session ID stored in browser local storage. The
+session ID is forwarded through the Next.js proxy to the orchestrator and RAG
+service, so tasks, uploads, indexes, and document lists are isolated by
+session.
 
 ---
 
@@ -92,6 +97,10 @@ GET http://127.0.0.1:11435/v1/router/gpu
 
 The router URL is configurable through `ROUTER_URL`.
 
+The left rail also lists known workbench sessions and provides a new-session
+control. Switching sessions changes the active session ID and refreshes the
+chat history, document list, and RAG context for that workspace.
+
 ### Chat panel
 
 `components/chat-panel.tsx` supports:
@@ -99,10 +108,13 @@ The router URL is configurable through `ROUTER_URL`.
 - Natural-language task submission.
 - Multiple `.pdf`, `.docx`, and `.xlsx` uploads.
 - Knowledge-base listing and deletion.
+- Document-list reconciliation every five seconds and on window focus.
 - Agent plan visualization.
 - Trace polling every 250 milliseconds while a task is active.
 - Human approval for paused `write_docx` steps.
 - Final deliverable display.
+- Stop button for active agent queries.
+- Mock terminal output for complete tool and sandbox results.
 
 For simple conversational tasks, the output is streamed progressively. The
 orchestrator requests Ollama's NDJSON response stream, appends each received
@@ -119,7 +131,7 @@ User prompt
    │
    ├── files → POST /api/rag/ingest → RAG /ingest
    │
-   └── text  → POST /api/agent/task → orchestrator
+        └── text  → search RAG → POST /api/agent/task → orchestrator
                                       │
                                       ▼
                               task_id returned
@@ -129,12 +141,12 @@ User prompt
                                       │
                                       ├── partial `final_deliverable` updates
                                       ▼
-                        render plan, trace, status, result
+                        render plan, trace, terminal output, status, result
 ```
 
 ### Context panel
 
-`components/context-panel.tsx` lists documents, sends direct RAG searches, renders retrieved text with source/page metadata, and deletes documents.
+`components/context-panel.tsx` lists documents, sends direct RAG searches, renders retrieved text with source/page metadata, and deletes documents. It refreshes the authoritative list every five seconds and on window focus, so entries removed externally do not remain visible. A stale row is also removed locally when deletion returns `404`.
 
 ### Next.js proxy routes
 
@@ -151,6 +163,8 @@ The browser uses same-origin routes; the Next.js server forwards requests to loc
 | `POST /api/agent/task` | Orchestrator task endpoint | Start agent task |
 | `GET /api/agent/{taskID}/trace` | Orchestrator trace endpoint | Poll task |
 | `POST /api/agent/{taskID}/resume` | Orchestrator resume endpoint | Approve task |
+| `POST /api/agent/{taskID}/cancel` | Orchestrator cancel endpoint | Stop active task |
+| `GET /api/rag/ingest/status` | RAG `/ingest/status` | Wait for indexing |
 
 Environment overrides:
 
@@ -171,6 +185,7 @@ The orchestrator is implemented in `orchestrator/main.py` and exposes:
 POST /api/agent/task
 GET  /api/agent/{task_id}/trace
 POST /api/agent/{task_id}/resume
+POST /api/agent/{task_id}/cancel
 ```
 
 ### Task lifecycle
@@ -179,6 +194,7 @@ POST /api/agent/{task_id}/resume
 initializing → planning → executing → completed
                               │
                               ├──────────────► failed
+                              ├──────────────► cancelled
                               │
                               └── write_docx → paused → approval → executing
 ```
@@ -189,7 +205,7 @@ initializing → planning → executing → completed
 
 `agent.py` first checks `_looks_complex()` for explicit terms such as `sandbox`, `search_rag`, `read_file`, and `write_docx`.
 
-If no explicit tool keyword is found, `qwen3:0.6b` classifies the prompt as `SIMPLE` or `COMPLEX`:
+If no explicit tool keyword is found, `qwen3:4b` classifies the prompt as `SIMPLE` or `COMPLEX`:
 
 ```text
 SIMPLE  → one direct_chat step using qwen3:4b
@@ -225,7 +241,7 @@ qwen3:8b evaluates observation
       └── failed → task failed
 ```
 
-Ollama is called directly at `http://127.0.0.1:11434/api/generate`. The orchestrator pre-warms `qwen3:0.6b`, `qwen3:4b`, and `qwen3:8b` in a background startup task.
+Ollama is called directly at `http://127.0.0.1:11434/api/generate`. The orchestrator pre-warms `qwen3:4b` for triage/direct chat and `qwen3:8b` for planning and critique in a background startup task.
 
 ### Direct-chat streaming
 
@@ -256,7 +272,7 @@ updated task snapshots. Planner, critic, and tool calls remain non-streaming.
 
 ### Human approval
 
-The first unapproved `write_docx` step changes the task to `paused`. The UI displays an approval button. `/resume` sets `human_approved=True` on the current step and reruns the loop so that the step executes instead of being skipped.
+The first unapproved `write_docx` step changes the task to `paused`. The UI displays an approval button. `/resume` sets `human_approved=True` on the current step and reruns the loop so that the step executes instead of being skipped. The stop button calls `/cancel`, marks the task `cancelled`, and cancels the active asyncio task, including an in-flight streamed Ollama response.
 
 ### Tool dispatcher
 
@@ -267,10 +283,16 @@ The first unapproved `write_docx` step changes the task to `paused`. The UI disp
 | `direct_chat` | Calls Ollama with `qwen3:4b` |
 | `search_rag` | Imports and calls `RAG/rag.py::query_rag` |
 | `python_sandbox` | Calls `sandbox.executor.run_sandboxed` |
-| `read_file` | Mock response currently |
-| `write_docx` | Mock success response currently |
+| `read_file` | Reads an allowed workspace/session document with a 500KB cap |
+| `write_docx` | Creates a session-scoped DOCX under `RAG/sessions/<session-id>/outputs/` |
 
 The RAG and sandbox calls are in-process Python calls, not HTTP calls.
+
+### Document-grounded agent requests
+
+Requests mentioning PDFs, attached/uploaded documents, problem statements, or the knowledge base are routed deterministically to `search_rag`. Retrieved excerpts are then supplied to a final streaming answer prompt. If the planner returns a malformed bare string, it is treated as a RAG query rather than as a direct-chat prompt about a filename.
+
+The UI waits for `/ingest/status` to report that indexing is complete before starting a task that follows an upload.
 
 ---
 
@@ -283,6 +305,27 @@ python -m uvicorn rag_server:app --port 8000
 ```
 
 It is both a FastAPI service and an importable Python pipeline used by the orchestrator.
+
+### Session-specific storage
+
+RAG data is stored below `RAG/sessions/` instead of one global document/index
+directory:
+
+```text
+RAG/sessions/
+├── session-.../
+│   ├── documents/
+│   └── data/
+│       ├── faiss.index
+│       ├── chunks_meta.json
+│       └── bm25.pkl
+└── another-session-/
+```
+
+The session ID is received through the `X-Session-ID` header. Ingestion
+status, document listing, querying, and deletion all resolve paths within the
+active session. Orchestrator task traces, resume, and cancellation also verify
+that the task belongs to the requesting session.
 
 ### Endpoints
 
@@ -309,7 +352,7 @@ PDFs with very little extracted text attempt an optional `ocrmac` fallback. If `
 Multipart upload
       │
       ▼
-Save supported files to RAG/documents/
+Save supported files to RAG/sessions/<session-id>/documents/
       │
       ▼
 Background ingestion worker
@@ -327,7 +370,7 @@ Sentence-transformer embeddings
       └── BM25 index when reranking is enabled
 ```
 
-The upload endpoint returns while indexing continues. A second upload during ingestion saves the files and reports `queued` rather than starting a concurrent indexing job.
+The upload endpoint returns while indexing continues. The UI polls `/ingest/status` before submitting a follow-up task. A second upload during ingestion saves the files and reports `queued` rather than starting a concurrent indexing job.
 
 ### Extraction and chunking
 
@@ -348,9 +391,9 @@ Every chunk retains source/page metadata.
 Artifacts:
 
 ```text
-RAG/data/faiss.index
-RAG/data/chunks_meta.json
-RAG/data/bm25.pkl
+RAG/sessions/<session-id>/data/faiss.index
+RAG/sessions/<session-id>/data/chunks_meta.json
+RAG/sessions/<session-id>/data/bm25.pkl
 ```
 
 The FAISS row number matches the corresponding entry in `chunks_meta.json`.
@@ -402,6 +445,10 @@ RAG returns:
 
 RAG retrieves and formats context; it does not generate the final answer.
 
+### Document deletion and stale data
+
+Deleting a document removes its source file when present and removes every matching chunk from the FAISS metadata, FAISS index, and BM25 index. The remaining chunks are re-embedded and the indexes are rebuilt. Deleting the final document removes the persisted index artifacts. If a source file is already missing but indexed chunks remain, deletion still purges those chunks. The endpoint returns `removed_chunks`.
+
 ---
 
 ## 5. Ollama Agent Router
@@ -412,7 +459,7 @@ RAG retrieves and formats context; it does not generate the final answer.
 
 | Model | Purpose |
 |---|---|
-| `qwen3:0.6b` | Triage and classification |
+| `qwen3:0.6b` | Legacy low-cost fallback model |
 | `qwen3:4b` | Simple chat and summarization |
 | `qwen2.5-coder:7b` | Code generation, review, and fixes |
 | `qwen3:8b` | Tool use, agentic reasoning, and large context |
@@ -420,7 +467,7 @@ RAG retrieves and formats context; it does not generate the final answer.
 ### Routes
 
 ```text
-triage            → qwen3:0.6b
+triage            → qwen3:4b
 simple_chat       → qwen3:4b
 summarize         → qwen3:4b
 code_generate     → qwen2.5-coder:7b
@@ -555,7 +602,7 @@ client_ui POST /api/agent/task
 Orchestrator creates AgentState
         │
         ├── explicit tool keyword → COMPLEX
-        └── otherwise qwen3:0.6b triage
+        └── otherwise qwen3:4b triage
                          │
                          ▼
                   SIMPLE or COMPLEX
@@ -690,6 +737,7 @@ SIH_AI_Workbench/
 │   │   ├── status-rail.tsx              # Router/model status
 │   │   └── ui/                          # UI primitives
 │   ├── lib/api.ts                        # Typed client helpers
+│   ├── lib/session.ts                    # Browser session identity
 │   └── package.json
 ├── orchestrator/
 │   ├── main.py                           # FastAPI endpoints
@@ -705,8 +753,8 @@ SIH_AI_Workbench/
 │   ├── retrieve.py                       # Retrieval response formatter
 │   ├── reranker.py                       # BM25, RRF, cross-encoder
 │   ├── config.py                         # RAG settings
-│   ├── documents/                        # Uploaded files
-│   └── data/                             # Indexes and metadata
+│   ├── session.py                         # Session-scoped paths
+│   └── sessions/                         # Per-session documents/indexes/outputs
 ├── sandbox/
 │   ├── executor.py                       # Docker execution boundary
 │   ├── Dockerfile                        # Sandbox image
@@ -726,14 +774,16 @@ SIH_AI_Workbench/
 
 ### Persistent data
 
-- Uploaded files: `RAG/documents/`.
-- FAISS vectors: `RAG/data/faiss.index`.
-- Chunk metadata: `RAG/data/chunks_meta.json`.
-- BM25 index: `RAG/data/bm25.pkl`.
+- Session-specific uploaded files: `RAG/sessions/<session-id>/documents/`.
+- Session-specific FAISS vectors: `RAG/sessions/<session-id>/data/faiss.index`.
+- Session-specific chunk metadata: `RAG/sessions/<session-id>/data/chunks_meta.json`.
+- Session-specific BM25 index: `RAG/sessions/<session-id>/data/bm25.pkl`.
+- Session-specific generated DOCX files: `RAG/sessions/<session-id>/outputs/`.
 
 ### In-memory data
 
 - Orchestrator tasks and traces.
+- Browser session selection and session list are currently process/browser scoped.
 - Cached embedding model.
 - Cached cross-encoder.
 - Cached BM25 index.
@@ -741,14 +791,29 @@ SIH_AI_Workbench/
 
 ### Current limitations
 
-- `read_file` and `write_docx` are mock implementations.
-- RAG deletion depends on an available `rag.delete_document` implementation.
+- `read_file` is intentionally restricted to the workspace and uploaded session documents.
+- The UI document list is reconciled against the RAG service rather than treated as permanent client state.
 - The orchestrator calls Ollama directly instead of using the router.
 - There is no authentication, authorization, or durable task queue.
 - The RAG service is local and rebuild-oriented.
 - OCR depends on optional `ocrmac` availability.
 - Router GPU settings contain Apple Silicon assumptions.
 - CORS and local service security are development-oriented.
+
+### Validation
+
+Backend compilation:
+
+```powershell
+\.venv\Scripts\python.exe -m py_compile orchestrator/*.py RAG/*.py
+```
+
+Frontend production build:
+
+```powershell
+Set-Location client_ui
+npm run build
+```
 
 ---
 

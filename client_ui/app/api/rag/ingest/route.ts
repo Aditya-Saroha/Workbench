@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(`${RAG_URL}/ingest`, {
       method: "POST",
+      headers: { "x-session-id": req.headers.get("x-session-id") ?? "default" },
       body: formData,
     });
 

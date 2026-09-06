@@ -6,11 +6,12 @@ multiple files to change a setting.
 """
 
 import os
+from session import data_dir, documents_dir
 
 # ─── Paths ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DOCUMENTS_DIR = os.path.join(BASE_DIR, "documents")
-DATA_DIR = os.path.join(BASE_DIR, "data")
+DOCUMENTS_DIR = documents_dir()
+DATA_DIR = data_dir()
 
 # ─── Chunking ────────────────────────────────────────────────────────
 # Target number of characters per chunk.

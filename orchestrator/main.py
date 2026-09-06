@@ -1,4 +1,4 @@
-from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi import FastAPI, BackgroundTasks, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict
 
@@ -73,21 +73,26 @@ app.add_middleware(
 # In-memory state store for the hackathon (use Redis/SQLite for production)
 active_tasks: Dict[str, AgentState] = {}
 active_task_handles: Dict[str, asyncio.Task] = {}
+session_activity: Dict[str, float] = {}
 
 @app.post("/api/agent/task")
 async def create_task(request: TaskRequest):
-    new_state = AgentState(original_prompt=request.prompt)
+    new_state = AgentState(original_prompt=request.prompt, session_id=request.session_id)
     active_tasks[new_state.task_id] = new_state
+    import time
+    session_activity[request.session_id] = time.time()
     active_task_handles[new_state.task_id] = spawn_agent_task(run_agent_loop(new_state))
     return {"task_id": new_state.task_id, "status": new_state.status}
 
 @app.get("/api/agent/{task_id}/trace")
-async def get_task_trace(task_id: str):
+async def get_task_trace(task_id: str, x_session_id: str = Header("default")):
     """Frontend polls this endpoint to update the UI trace and status."""
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
     state = active_tasks[task_id]
+    if state.session_id != x_session_id:
+        raise HTTPException(status_code=404, detail="Task not found")
     return {
         "status": state.status,
         "current_step": state.current_step_index,
@@ -95,14 +100,17 @@ async def get_task_trace(task_id: str):
         "trace": state.trace_log,
         "final_deliverable": state.final_deliverable,
         "last_tool_output": state.last_tool_output,
+        "session_id": state.session_id,
     }
 
 @app.post("/api/agent/{task_id}/resume")
-async def resume_task(task_id: str):
+async def resume_task(task_id: str, x_session_id: str = Header("default")):
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
     state = active_tasks[task_id]
+    if state.session_id != x_session_id:
+        raise HTTPException(status_code=404, detail="Task not found")
     if state.status != "paused":
         raise HTTPException(status_code=400, detail="Task is not paused.")
 
@@ -120,11 +128,13 @@ async def resume_task(task_id: str):
 
 
 @app.post("/api/agent/{task_id}/cancel")
-async def cancel_task(task_id: str):
+async def cancel_task(task_id: str, x_session_id: str = Header("default")):
     if task_id not in active_tasks:
         raise HTTPException(status_code=404, detail="Task not found")
 
     state = active_tasks[task_id]
+    if state.session_id != x_session_id:
+        raise HTTPException(status_code=404, detail="Task not found")
     if state.status in {"completed", "failed", "cancelled"}:
         raise HTTPException(status_code=400, detail=f"Task is already {state.status}.")
     if state.status == "paused":
@@ -139,3 +149,18 @@ async def cancel_task(task_id: str):
         task.cancel()
 
     return {"message": "Task cancelled."}
+
+
+@app.get("/api/sessions")
+async def list_sessions():
+    import time
+    sessions = set(session_activity)
+    sessions.update(state.session_id for state in active_tasks.values())
+    if not sessions:
+        sessions.add("default")
+    return {
+        "sessions": [
+            {"id": session_id, "updated_at": session_activity.get(session_id, time.time())}
+            for session_id in sorted(sessions)
+        ]
+    }

@@ -10,6 +10,7 @@ export async function POST(req: Request) {
   try {
     const res = await fetch(`${ORCHESTRATOR_URL}/api/agent/${taskId}/cancel`, {
       method: "POST",
+      headers: { "x-session-id": req.headers.get("x-session-id") ?? "default" },
     });
     const body = await res.json().catch(() => ({}));
     return NextResponse.json(body, { status: res.status });

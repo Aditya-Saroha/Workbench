@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
   try {
     const res = await fetch(`${ORCHESTRATOR_URL}/api/agent/task`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
+      headers: { "content-type": "application/json", "x-session-id": req.headers.get("x-session-id") ?? "default" },
+      body: JSON.stringify({ ...body, session_id: body.session_id ?? req.headers.get("x-session-id") ?? "default" }),
     });
 
     if (!res.ok) {

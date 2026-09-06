@@ -16,6 +16,7 @@ export async function DELETE(req: NextRequest) {
 
     const res = await fetch(`${RAG_SERVICE_URL}/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
+      headers: { "x-session-id": req.headers.get("x-session-id") ?? "default" },
     });
 
     const body = await res.json().catch(() => ({}));

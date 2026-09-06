@@ -36,6 +36,26 @@ export interface StatusResponse {
   gpu: unknown;
 }
 
+export interface SessionSummary {
+  id: string;
+  updated_at: number;
+}
+
+export async function listSessions(): Promise<{ sessions?: SessionSummary[]; error?: string }> {
+  try {
+    const res = await fetch("/api/sessions", { cache: "no-store" });
+    return await res.json();
+  } catch {
+    return { error: "network_error" };
+  }
+}
+
+import { getSessionId } from "./session";
+
+function sessionHeaders() {
+  return { "x-session-id": getSessionId() };
+}
+
 export async function getStatus(): Promise<StatusResponse> {
   const res = await fetch("/api/status", { cache: "no-store" });
   return res.json();
@@ -48,7 +68,7 @@ export async function queryRag(
   try {
     const res = await fetch("/api/rag", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...sessionHeaders() },
       body: JSON.stringify({ query, top_k: topK }),
     });
     return await res.json();
@@ -114,6 +134,7 @@ export async function uploadDocuments(files: File[]): Promise<IngestResponse> {
   try {
     const res = await fetch("/api/rag/ingest", {
       method: "POST",
+      headers: sessionHeaders(),
       body: formData,
     });
     return await res.json();
@@ -127,7 +148,7 @@ export async function waitForIngestion(timeoutMs = 120_000): Promise<{ error?: s
 
   while (Date.now() - startedAt < timeoutMs) {
     try {
-      const res = await fetch("/api/rag/ingest/status", { cache: "no-store" });
+      const res = await fetch("/api/rag/ingest/status", { cache: "no-store", headers: sessionHeaders() });
       const body = await res.json();
       if (!res.ok) return { error: "rag_status_error", detail: body.detail ?? body.error };
       if (!body.in_progress) {
@@ -148,7 +169,7 @@ export async function waitForIngestion(timeoutMs = 120_000): Promise<{ error?: s
 
 export async function listDocuments(): Promise<{ files?: string[]; error?: string; detail?: string }> {
   try {
-    const res = await fetch("/api/documents", { cache: "no-store" });
+    const res = await fetch("/api/documents", { cache: "no-store", headers: sessionHeaders() });
     const body = await res.json();
     if (!res.ok) return { error: body.error ?? "documents_unavailable", detail: body.detail };
     return body;
@@ -163,6 +184,7 @@ export async function deleteDocument(
   try {
     const res = await fetch(`/api/documents/${encodeURIComponent(filename)}`, {
       method: "DELETE",
+      headers: sessionHeaders(),
     });
  
     if (!res.ok) {

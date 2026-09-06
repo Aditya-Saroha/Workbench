@@ -19,16 +19,20 @@ import os
 import numpy as np
 import faiss
 from config import DATA_DIR, TOP_K, RERANKING_ENABLED
+from session import data_dir
 from embeddings import embed_texts, embed_query, get_embedding_dimension
 
 # ─── File paths ───────────────────────────────────────────────────────
-INDEX_PATH = os.path.join(DATA_DIR, "faiss.index")
-META_PATH = os.path.join(DATA_DIR, "chunks_meta.json")
+def _paths():
+    directory = data_dir()
+    os.makedirs(directory, exist_ok=True)
+    return os.path.join(directory, "faiss.index"), os.path.join(directory, "chunks_meta.json")
 
 
 def clear_index() -> None:
     """Remove persisted vector, metadata, and lexical index artifacts."""
-    for path in (INDEX_PATH, META_PATH, os.path.join(DATA_DIR, "bm25.pkl")):
+    index_path, meta_path = _paths()
+    for path in (index_path, meta_path, os.path.join(data_dir(), "bm25.pkl")):
         if os.path.exists(path):
             os.remove(path)
 
@@ -71,12 +75,13 @@ def build_index(chunks: list[dict]) -> faiss.Index:
     print(f"✅ FAISS index built: {index.ntotal} vectors, {dim} dimensions")
 
     # Save index
-    faiss.write_index(index, INDEX_PATH)
-    print(f"💾 Index saved to {INDEX_PATH}")
+    index_path, meta_path = _paths()
+    faiss.write_index(index, index_path)
+    print(f"💾 Index saved to {index_path}")
 
     # Save metadata (everything except "text" is small; we save full chunks
     # so retrieval can return source, page, AND text without re-reading PDFs)
-    with open(META_PATH, "w", encoding="utf-8") as f:
+    with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(chunks, f, indent=2, ensure_ascii=False)
     print(f"💾 Metadata saved to {META_PATH}")
 
@@ -97,17 +102,18 @@ def load_index() -> tuple[faiss.Index, list[dict]]:
 
     Returns (index, chunks_meta).
     """
-    if not os.path.exists(INDEX_PATH):
+    index_path, meta_path = _paths()
+    if not os.path.exists(index_path):
         raise FileNotFoundError(
-            f"No FAISS index found at {INDEX_PATH}. Run build_index() first."
+            f"No FAISS index found at {index_path}. Run build_index() first."
         )
-    if not os.path.exists(META_PATH):
+    if not os.path.exists(meta_path):
         raise FileNotFoundError(
-            f"No metadata found at {META_PATH}. Run build_index() first."
+            f"No metadata found at {meta_path}. Run build_index() first."
         )
 
-    index = faiss.read_index(INDEX_PATH)
-    with open(META_PATH, "r", encoding="utf-8") as f:
+    index = faiss.read_index(index_path)
+    with open(meta_path, "r", encoding="utf-8") as f:
         chunks_meta = json.load(f)
 
     print(f"📂 Loaded FAISS index: {index.ntotal} vectors")

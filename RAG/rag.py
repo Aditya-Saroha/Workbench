@@ -28,31 +28,33 @@ Usage from the command line:
 """
 
 import json
-from config import TOP_K, DOCUMENTS_DIR
+from config import TOP_K
 from ingest import ingest_pdfs
 from vector_store import build_index, clear_index, load_index
 from reranker import invalidate_cache
 from retrieve import retrieve
+from session import documents_dir, session_scope
 
 
 # ─── Public API ───────────────────────────────────────────────────────
 
-def ingest_documents(directory: str = DOCUMENTS_DIR) -> int:
+def ingest_documents(directory: str | None = None, session_id: str = "default") -> int:
     """
     Ingest all PDFs from `directory`, embed them, and build the FAISS
     index.  Call this once (or whenever documents change).
 
     Returns the number of chunks indexed.
     """
-    chunks = ingest_pdfs(directory)
-    if not chunks:
-        print("⚠️  No chunks produced. Check that PDFs exist in the documents/ folder.")
-        return 0
-    build_index(chunks)
-    return len(chunks)
+    with session_scope(session_id):
+        chunks = ingest_pdfs(directory or documents_dir())
+        if not chunks:
+            clear_index()
+            return 0
+        build_index(chunks)
+        return len(chunks)
 
 
-def query_rag(query: str, top_k: int = TOP_K) -> dict:
+def query_rag(query: str, top_k: int = TOP_K, session_id: str = "default") -> dict:
     """
     Retrieve the most relevant chunks for a natural-language query.
 
@@ -66,33 +68,35 @@ def query_rag(query: str, top_k: int = TOP_K) -> dict:
     The router can use `context` entries to build an LLM prompt and
     `sources` for citations.
     """
-    return retrieve(query, top_k=top_k)
+    with session_scope(session_id):
+        return retrieve(query, top_k=top_k)
 
 
-def delete_document(filename: str) -> int:
+def delete_document(filename: str, session_id: str = "default") -> int:
     """Remove one source document and all of its chunks from every index.
 
     The source file is deleted by ``rag_server``. This function only updates
     persisted retrieval data, using the exact stored basename as identity.
     Returns the number of removed chunks.
     """
-    try:
-        _, chunks = load_index()
-    except FileNotFoundError:
-        return 0
+    with session_scope(session_id):
+        try:
+            _, chunks = load_index()
+        except FileNotFoundError:
+            return 0
 
-    remaining = [chunk for chunk in chunks if chunk.get("source") != filename]
-    removed = len(chunks) - len(remaining)
-    if removed == 0:
-        return 0
+        remaining = [chunk for chunk in chunks if chunk.get("source") != filename]
+        removed = len(chunks) - len(remaining)
+        if removed == 0:
+            return 0
 
-    if remaining:
-        build_index(remaining)
-    else:
-        clear_index()
+        if remaining:
+            build_index(remaining)
+        else:
+            clear_index()
 
-    invalidate_cache()
-    return removed
+        invalidate_cache()
+        return removed
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────

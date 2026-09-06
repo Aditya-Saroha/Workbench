@@ -83,6 +83,7 @@ async def ingest(files: List[UploadFile] = File(...)):
     # this route (and this service's event loop) stays responsive, and so
     # the HTTP response returns immediately instead of holding the
     # connection open for the full ingestion duration.
+    app.state.ingest_in_progress = True
     loop = asyncio.get_event_loop()
     loop.run_in_executor(None, _run_ingest, DOCUMENTS_DIR)
 

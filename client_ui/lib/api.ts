@@ -102,6 +102,7 @@ export async function sendChat(
 export interface IngestResponse {
   ingested?: string[];
   chunks?: number;
+  status?: string;
   error?: string;
   detail?: string;
 }
@@ -119,6 +120,30 @@ export async function uploadDocuments(files: File[]): Promise<IngestResponse> {
   } catch (err) {
     return { error: "network_error", detail: String(err) };
   }
+}
+
+export async function waitForIngestion(timeoutMs = 120_000): Promise<{ error?: string; detail?: string }> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const res = await fetch("/api/rag/ingest/status", { cache: "no-store" });
+      const body = await res.json();
+      if (!res.ok) return { error: "rag_status_error", detail: body.detail ?? body.error };
+      if (!body.in_progress) {
+        if (body.last_result?.error) {
+          return { error: "ingestion_failed", detail: body.last_result.error };
+        }
+        return {};
+      }
+    } catch (err) {
+      return { error: "network_error", detail: String(err) };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return { error: "ingestion_timeout", detail: "Document indexing did not finish within two minutes." };
 }
 
 export async function listDocuments(): Promise<{ files?: string[]; error?: string; detail?: string }> {

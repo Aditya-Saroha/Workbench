@@ -137,7 +137,11 @@ export async function uploadDocuments(files: File[]): Promise<IngestResponse> {
       headers: sessionHeaders(),
       body: formData,
     });
-    return await res.json();
+    const body = await res.json();
+    if (!res.ok) {
+      return { error: body.error ?? `Upload failed (${res.status})`, detail: body.detail };
+    }
+    return body;
   } catch (err) {
     return { error: "network_error", detail: String(err) };
   }

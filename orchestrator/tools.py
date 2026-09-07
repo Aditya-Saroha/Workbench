@@ -63,10 +63,13 @@ if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
 try:
-    from sandbox.executor import run_sandboxed
+    from sandbox.executor import run_sandboxed_session, close_sandbox_session, reap_idle_sandbox_sessions, TIMEOUT_SECONDS
 except ImportError as e:
     print(f"Warning: Could not import sandbox executor. Error: {e}")
-    run_sandboxed = None
+    run_sandboxed_session = None
+    close_sandbox_session = None
+    reap_idle_sandbox_sessions = None
+    TIMEOUT_SECONDS = 10
 
 
 def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -> str:
@@ -144,21 +147,58 @@ def execute_tool(tool_name: str, tool_args: dict, session_id: str = "default") -
             return f"Error: could not read file: {e}"
         
     elif tool_name == "python_sandbox":
-        code = tool_args.get("code")
-        if code is None:
-            return "Error: Missing 'code' argument for python_sandbox."
-        if not isinstance(code, str):
-            return "Error: 'code' argument must be a string."
-        if not code.strip():
-            return "Error: 'code' argument cannot be empty."
-            
-        if not run_sandboxed:
+        # Accept either a single `code` string (backward compatible with
+        # existing plans) or a `commands` list, so the planner can run
+        # several statements one after another in the SAME sandbox
+        # container for this chat — variables and imports persist across
+        # commands, and across separate python_sandbox steps/calls within
+        # the same session_id, instead of each call getting a throwaway
+        # interpreter.
+        commands = tool_args.get("commands")
+        if commands is None:
+            code = tool_args.get("code")
+            if code is None:
+                return "Error: Missing 'code' or 'commands' argument for python_sandbox."
+            if not isinstance(code, str):
+                return "Error: 'code' argument must be a string."
+            commands = [code]
+        elif not isinstance(commands, list) or not all(isinstance(c, str) for c in commands):
+            return "Error: 'commands' must be a list of code strings."
+
+        commands = [c for c in commands if c.strip()]
+        if not commands:
+            return "Error: 'code'/'commands' argument cannot be empty."
+
+        if not run_sandboxed_session:
             return "Error: python_sandbox is unavailable — sandbox package could not be imported."
-            
+
         try:
-            return run_sandboxed(code)
+            entries = run_sandboxed_session(session_id, commands)
         except Exception as e:
             return f"Error: Sandbox execution failed unexpectedly: {str(e)}"
+
+        # Two representations of the same run in one string:
+        #   1. A plain "$ command" / output transcript, so the critic
+        #      model (evaluate_step) and any plain-text consumer can read
+        #      it directly, same as before.
+        #   2. A machine-readable JSON block the chat UI parses to render
+        #      a real scrollback terminal (each command as its own entry)
+        #      instead of one flat blob.
+        transcript_lines = []
+        for entry in entries:
+            if entry.get("command") is not None:
+                transcript_lines.append(f"$ {entry['command'].strip()}")
+            output_text = (entry.get("output") or "").rstrip()
+            transcript_lines.append(output_text if output_text else "(no output)")
+            if entry.get("timed_out"):
+                transcript_lines.append(f"[timed out after {TIMEOUT_SECONDS}s — sandbox session was reset]")
+            elif entry.get("exit_code") is not None:
+                transcript_lines.append(f"[exit code: {entry['exit_code']}]")
+            transcript_lines.append("")
+        transcript = "\n".join(transcript_lines).rstrip()
+
+        payload = json.dumps({"kind": "sandbox_transcript", "commands": entries})
+        return f"{transcript}\n\n<!--SANDBOX_JSON-->{payload}<!--/SANDBOX_JSON-->"
         
     elif tool_name == "write_docx":
         filename = tool_args.get("filename")

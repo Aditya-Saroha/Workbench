@@ -62,10 +62,14 @@ from __future__ import annotations
 
 import logging
 import os
+import queue
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -75,12 +79,13 @@ logger = logging.getLogger(__name__)
 # ─── Tunables ────────────────────────────────────────────────────────────────
 
 SANDBOX_IMAGE      = "mrpl-sandbox:latest"
-TIMEOUT_SECONDS    = 10       # Wall-clock kill threshold for container execution
+TIMEOUT_SECONDS    = 10       # Wall-clock kill threshold for a single command
 MAX_OUTPUT_BYTES   = 1 * 1024 * 1024   # 1 MB per stream (stdout / stderr)
 DOCKER_MEMORY      = "256m"   # Hard RAM ceiling (--memory)
 DOCKER_CPUS        = "1.0"    # CPU core share (--cpus)
 DOCKER_PIDS_LIMIT  = 64       # Max OS-level processes inside container (--pids-limit)
 DOCKER_STOP_TIMEOUT = 3       # Seconds for graceful stop before SIGKILL
+SESSION_IDLE_TIMEOUT = 600    # Recycle a session's container after 10 min of no use
 
 
 # ─── Docker discovery ────────────────────────────────────────────────────────
@@ -254,6 +259,274 @@ def _ensure_image() -> tuple[bool, str]:
     if success:
         return True, ""
     return False, f"Could not build sandbox image: {msg}"
+
+
+# ─── Persistent sandbox sessions (multi-command continuity) ─────────────────
+#
+# run_sandboxed() below is the original one-shot model: one container per
+# call, blank interpreter every time. That's fine for a single snippet, but
+# it means the agent can never build on a variable, import, or file it set
+# up in a *previous* python_sandbox step — every call starts from zero.
+#
+# SandboxSession fixes that by keeping ONE detached container alive per
+# workbench session_id, running a tiny stdin-driven REPL (`_DRIVER_SRC`)
+# instead of `python3 -`. Each call to `.run(code)` sends one code block,
+# waits for a sentinel line back, and returns that block's combined
+# stdout+stderr and exit code — so `g = {}` (the REPL's globals dict)
+# persists across every command sent to the same session, letting the agent
+# do `x = 1` in one step and `print(x)` in the next.
+#
+# All the container-level security flags from run_sandboxed() still apply
+# (no network, no host mounts, dropped capabilities, memory/CPU/PID caps) —
+# only the run/keep-alive model changes.
+
+_DRIVER_SRC = r"""
+import sys, traceback
+sys.stderr = sys.stdout
+SENTINEL = "\x00SBXDONE\x00"
+g = {}
+buf = []
+while True:
+    line = sys.stdin.readline()
+    if line == "":
+        break
+    if line.rstrip("\n") == SENTINEL:
+        code = "".join(buf)
+        buf = []
+        try:
+            exec(compile(code, "<sandbox>", "exec"), g)
+            rc = 0
+        except SystemExit as e:
+            rc = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        except BaseException:
+            traceback.print_exc()
+            rc = 1
+        sys.stdout.write(SENTINEL + str(rc) + "\n")
+        sys.stdout.flush()
+    else:
+        buf.append(line)
+"""
+
+_sandbox_sessions: dict[str, "SandboxSession"] = {}
+_sessions_lock = threading.RLock()
+
+
+class SandboxSession:
+    """One persistent, detached sandbox container + an attached stdin/stdout
+    pipe to it, tied to a single workbench session_id."""
+
+    SENTINEL = "\x00SBXDONE\x00"
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.container_name = f"mrpl-sandbox-{_safe_id(session_id)}-{uuid.uuid4().hex[:8]}"
+        self.last_used = time.time()
+        self._binary = _docker_binary()
+        if not self._binary:
+            raise RuntimeError("Docker binary not found.")
+        self._env = _build_docker_env()
+        self._start_container()
+        self._attach = subprocess.Popen(
+            [self._binary, "attach", "--sig-proxy=false", self.container_name],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=self._env,
+        )
+
+    def _start_container(self) -> None:
+        cmd = [
+            self._binary, "run", "-d", "--rm",
+            "--name", self.container_name,
+            "--network", "none",
+            "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges",
+            "--memory", DOCKER_MEMORY,
+            "--memory-swap", DOCKER_MEMORY,
+            "--cpus", DOCKER_CPUS,
+            "--pids-limit", str(DOCKER_PIDS_LIMIT),
+            "-i",
+            SANDBOX_IMAGE,
+            "python3", "-u", "-c", _DRIVER_SRC,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, env=self._env)
+        if result.returncode != 0:
+            raise RuntimeError(f"Could not start sandbox session container: {result.stderr.strip()}")
+
+    def is_alive(self) -> bool:
+        return self._attach.poll() is None
+
+    def touch(self) -> None:
+        self.last_used = time.time()
+
+    def run(self, code: str, timeout: float = TIMEOUT_SECONDS) -> dict:
+        """Send one code block to the session's REPL and wait for its result.
+
+        Returns {"output": str, "exit_code": int|None, "timed_out": bool}.
+        A timed-out or broken-pipe run kills this session's container —
+        the caller (run_sandboxed_session) is responsible for starting a
+        fresh one for anything still queued after that.
+        """
+        self.touch()
+        if not self.is_alive():
+            raise RuntimeError("Sandbox session process has already exited.")
+
+        payload = code if code.endswith("\n") else code + "\n"
+        payload += self.SENTINEL + "\n"
+        try:
+            self._attach.stdin.write(payload.encode("utf-8"))
+            self._attach.stdin.flush()
+        except (BrokenPipeError, OSError) as e:
+            raise RuntimeError(f"Sandbox session pipe broken: {e}")
+
+        out_q: "queue.Queue[bytes]" = queue.Queue()
+
+        def _reader():
+            try:
+                for raw_line in iter(self._attach.stdout.readline, b""):
+                    out_q.put(raw_line)
+                    if raw_line.decode("utf-8", "replace").rstrip("\n").startswith(self.SENTINEL):
+                        break
+            except Exception:
+                pass
+
+        reader_thread = threading.Thread(target=_reader, daemon=True)
+        reader_thread.start()
+        reader_thread.join(timeout)
+
+        lines: list[str] = []
+        exit_code: Optional[int] = None
+        total_bytes = 0
+        truncated = False
+        while not out_q.empty():
+            raw_line = out_q.get()
+            text = raw_line.decode("utf-8", "replace")
+            stripped = text.rstrip("\n")
+            if stripped.startswith(self.SENTINEL):
+                tail = stripped[len(self.SENTINEL):]
+                exit_code = int(tail) if tail.lstrip("-").isdigit() else 1
+            else:
+                if not truncated:
+                    total_bytes += len(raw_line)
+                    if total_bytes > MAX_OUTPUT_BYTES:
+                        truncated = True
+                        lines.append(f"\n[... output truncated: exceeded {MAX_OUTPUT_BYTES // 1024 // 1024} MB limit ...]\n")
+                    else:
+                        lines.append(text)
+
+        if exit_code is None:
+            # The REPL never sent its sentinel back in time — either the
+            # command hung or the container is wedged. Recycle it so the
+            # session isn't stuck forever; the caller starts a fresh one.
+            self.close()
+            return {"output": "".join(lines), "exit_code": None, "timed_out": True}
+
+        return {"output": "".join(lines), "exit_code": exit_code, "timed_out": False}
+
+    def close(self) -> None:
+        try:
+            self._attach.kill()
+        except Exception:
+            pass
+        try:
+            subprocess.run(
+                [self._binary, "stop", "--time", str(DOCKER_STOP_TIMEOUT), self.container_name],
+                capture_output=True,
+                timeout=DOCKER_STOP_TIMEOUT + 5,
+                env=self._env,
+            )
+        except Exception:
+            pass
+
+
+def _safe_id(session_id: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_-]", "-", session_id or "default")[:40] or "default"
+
+
+def _get_or_create_session(session_id: str, force_new: bool = False) -> SandboxSession:
+    with _sessions_lock:
+        existing = _sandbox_sessions.get(session_id)
+        if existing and not force_new and existing.is_alive():
+            existing.touch()
+            return existing
+        if existing:
+            existing.close()
+        session = SandboxSession(session_id)
+        _sandbox_sessions[session_id] = session
+        return session
+
+
+def run_sandboxed_session(session_id: str, commands: list[str]) -> list[dict]:
+    """Run one or more code blocks in the persistent sandbox for this
+    workbench session, preserving variables/imports between them AND
+    between separate python_sandbox tool calls in the same chat.
+
+    Returns a list of {"command", "output", "exit_code", "timed_out"}
+    dicts, one per command, in execution order — the full transcript
+    tools.py formats for the agent and the UI's terminal view.
+    """
+    if not _docker_available():
+        return [
+            {"command": c, "output": "Sandbox unavailable: Docker runtime is not reachable.",
+             "exit_code": None, "timed_out": False}
+            for c in commands
+        ]
+
+    image_ok, image_err = _ensure_image()
+    if not image_ok:
+        return [
+            {"command": c, "output": f"Sandbox unavailable: {image_err}",
+             "exit_code": None, "timed_out": False}
+            for c in commands
+        ]
+
+    results = []
+    for command in commands:
+        try:
+            session = _get_or_create_session(session_id)
+            outcome = session.run(command)
+        except RuntimeError:
+            # Session was dead or its pipe broke — recycle once and retry
+            # this same command before giving up on it.
+            try:
+                session = _get_or_create_session(session_id, force_new=True)
+                outcome = session.run(command)
+            except RuntimeError as e:
+                outcome = {"output": f"Error: {e}", "exit_code": None, "timed_out": False}
+
+        results.append({"command": command, **outcome})
+
+        if outcome.get("timed_out"):
+            results.append({
+                "command": None,
+                "output": f"Sandbox session reset after a command exceeded {TIMEOUT_SECONDS}s. "
+                          "Remaining commands in this batch were not run — global state was lost.",
+                "exit_code": None,
+                "timed_out": True,
+            })
+            break
+
+    return results
+
+
+def close_sandbox_session(session_id: str) -> None:
+    """Stop and remove a session's persistent container. Call this when a
+    chat is deleted so its container doesn't linger."""
+    with _sessions_lock:
+        session = _sandbox_sessions.pop(session_id, None)
+    if session:
+        session.close()
+
+
+def reap_idle_sandbox_sessions(max_idle: float = SESSION_IDLE_TIMEOUT) -> None:
+    """Recycle containers for chats that have been idle a while, so a
+    forgotten tab doesn't hold a container open indefinitely."""
+    now = time.time()
+    with _sessions_lock:
+        stale_ids = [sid for sid, s in _sandbox_sessions.items() if now - s.last_used > max_idle]
+        stale_sessions = [_sandbox_sessions.pop(sid) for sid in stale_ids]
+    for session in stale_sessions:
+        session.close()
 
 
 # ─── Output helpers ──────────────────────────────────────────────────────────

@@ -44,6 +44,60 @@ const INIT_PHRASES = [
   "Waking up the local model…",
 ];
 
+// Rotating status line shown while a tool is running, instead of a raw
+// terminal blob streaming in real time. Different tools get phrasing that
+// actually describes what's happening; the full transcript is still there,
+// just behind the dropdown (see ToolOutputPanel).
+const TOOL_RUN_PHRASES: Record<string, string[]> = {
+  python_sandbox: [
+    "Spinning up the sandbox…",
+    "Running your code…",
+    "Triangulating the output…",
+    "Waiting on the container…",
+  ],
+  search_rag: [
+    "Triangulating relevant passages…",
+    "Scanning the knowledge base…",
+    "Cross-referencing your documents…",
+  ],
+  read_file: ["Opening the file…", "Triangulating the contents…"],
+  write_docx: ["Drafting the document…", "Laying out the sections…"],
+};
+const DEFAULT_TOOL_PHRASES = ["Triangulating the right approach…", "Running the tool…"];
+
+interface SandboxCommandEntry {
+  command: string | null;
+  output: string;
+  exit_code: number | null;
+  timed_out: boolean;
+}
+
+/** tools.py embeds a `<!--SANDBOX_JSON-->{...}<!--/SANDBOX_JSON-->` block
+ * inside python_sandbox's plain-text output so the critic model and any
+ * plain-text consumer still see a normal transcript, while the UI can pull
+ * out the structured per-command entries for a real terminal view. */
+function parseSandboxTranscript(output: string | null): SandboxCommandEntry[] | null {
+  if (!output) return null;
+  const match = output.match(/<!--SANDBOX_JSON-->([\s\S]*?)<!--\/SANDBOX_JSON-->/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (parsed?.kind === "sandbox_transcript" && Array.isArray(parsed.commands)) {
+      return parsed.commands as SandboxCommandEntry[];
+    }
+  } catch {
+    // Fall through — render as plain output instead.
+  }
+  return null;
+}
+
+function getActiveToolName(agentState: AgentState): string | null {
+  const running = agentState.plan.find((s) => s.status === "running");
+  if (running) return running.tool_name;
+  if (agentState.plan.length > 0) return agentState.plan[agentState.plan.length - 1].tool_name;
+  return null;
+}
+
 const UPLOAD_PHRASES = [
   "Reading document structure…",
   "Indexing pages…",
@@ -518,7 +572,8 @@ export function ChatPanel() {
                       </div>
                     )}
 
-                    <MockTerminal
+                    <ToolOutputPanel
+                      toolName={getActiveToolName(t.agentState)}
                       output={t.agentState.last_tool_output}
                       live={t.agentState.status === "executing" && t.agentState.plan.some((step) => step.status === "running")}
                     />
@@ -630,21 +685,81 @@ export function ChatPanel() {
   );
 }
 
-function MockTerminal({ output, live }: { output: string | null; live: boolean }) {
+/**
+ * While a tool is running: a single rotating status line, no raw output —
+ * matches TraceLog's "Working…" collapsed-by-default feel instead of
+ * streaming a terminal blob inline. Once there's output, the line becomes
+ * a one-line summary that expands (dropdown) into the full terminal —
+ * every sandbox command gets its own `$ command` / output / exit-code
+ * block instead of one flat stdout+stderr dump.
+ */
+function ToolOutputPanel({ toolName, output, live }: { toolName: string | null; output: string | null; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  const phrases = (toolName && TOOL_RUN_PHRASES[toolName]) || DEFAULT_TOOL_PHRASES;
+  const phrase = useRotatingPhrase(live, phrases, 1500);
+
   if (!output && !live) return null;
 
+  const sandboxEntries = toolName === "python_sandbox" ? parseSandboxTranscript(output) : null;
+  const plainOutput = output ? output.replace(/<!--SANDBOX_JSON-->[\s\S]*?<!--\/SANDBOX_JSON-->/, "").trim() : "";
+
+  const ranCommandCount = sandboxEntries?.filter((e) => e.command !== null).length ?? 0;
+  const summary = live
+    ? phrase
+    : sandboxEntries
+    ? `Ran ${ranCommandCount} command${ranCommandCount === 1 ? "" : "s"} in the sandbox`
+    : "Tool output ready";
+
   return (
-    <div className="overflow-hidden rounded-xl border border-zinc-800 bg-[#11161b] shadow-sm">
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-3.5 py-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-        <span className="h-2 w-2 rounded-full bg-rose-400" />
-        <span className="h-2 w-2 rounded-full bg-amber-400" />
-        <span className="h-2 w-2 rounded-full bg-emerald-400" />
-        <span className="ml-1 text-zinc-400">workbench terminal</span>
-        {live && <Loader2 className="ml-auto h-3 w-3 animate-spin text-emerald-400" />}
-      </div>
-      <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-[12px] leading-relaxed text-emerald-300">
-        <span className="select-none text-cyan-400">$ </span>{output || "Waiting for tool output…"}
-      </pre>
+    <div className="overflow-hidden rounded-xl border border-zinc-200">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-[13px] text-zinc-600 hover:text-zinc-900"
+      >
+        <span className="flex items-center gap-2">
+          {live && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-indigo-500" />}
+          {summary}
+        </span>
+        {open ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+      </button>
+      {open && (
+        <div className="border-t border-zinc-800 bg-[#11161b]">
+          <div className="flex items-center gap-2 border-b border-zinc-800 px-3.5 py-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+            <span className="h-2 w-2 rounded-full bg-rose-400" />
+            <span className="h-2 w-2 rounded-full bg-amber-400" />
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="ml-1 text-zinc-400">workbench terminal</span>
+            {live && <Loader2 className="ml-auto h-3 w-3 animate-spin text-emerald-400" />}
+          </div>
+          <div className="max-h-72 overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-[12px] leading-relaxed text-emerald-300">
+            {sandboxEntries ? (
+              sandboxEntries.map((entry, idx) => (
+                <div key={idx} className="mb-3 last:mb-0">
+                  {entry.command !== null && (
+                    <div>
+                      <span className="select-none text-cyan-400">$ </span>
+                      <span className="text-zinc-200">{entry.command.trim()}</span>
+                    </div>
+                  )}
+                  <div>{entry.output || "(no output)"}</div>
+                  {entry.timed_out ? (
+                    <div className="text-amber-400">[timed out — sandbox session was reset]</div>
+                  ) : entry.exit_code !== null ? (
+                    <div className={entry.exit_code === 0 ? "text-emerald-500" : "text-rose-400"}>
+                      [exit code: {entry.exit_code}]
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <div>
+                <span className="select-none text-cyan-400">$ </span>
+                {plainOutput || "Waiting for tool output…"}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

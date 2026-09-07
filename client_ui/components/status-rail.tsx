@@ -2,9 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getStatus, listSessions, StatusResponse } from "@/lib/api";
+import { getStatus, listSessions, createSession, deleteSession, SessionSummary, StatusResponse } from "@/lib/api";
 import { getSessionId, setSessionId, useSessionId } from "@/lib/session";
-import { ShieldCheck, Circle, Plus } from "lucide-react";
+import { ShieldCheck, Circle, Plus, Trash2 } from "lucide-react";
 
 /**
  * Design tokens — shared across status-rail / chat-panel / context-panel:
@@ -20,7 +20,9 @@ import { ShieldCheck, Circle, Plus } from "lucide-react";
 
 export function StatusRail() {
   const [status, setStatus] = useState<StatusResponse | null>(null);
-  const [sessions, setSessions] = useState<{ id: string; updated_at: number }[]>([]);
+  const [chats, setChats] = useState<SessionSummary[]>([]);
+  const [creatingChat, setCreatingChat] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const activeSession = useSessionId();
 
   useEffect(() => {
@@ -31,16 +33,34 @@ export function StatusRail() {
   }, []);
 
   useEffect(() => {
-    const refresh = () => listSessions().then((result) => setSessions(result.sessions ?? [])).catch(() => {});
+    const refresh = () => listSessions().then((result) => setChats(result.sessions ?? [])).catch(() => {});
     refresh();
     const interval = setInterval(refresh, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  function newSession() {
-    const sessionId = `session-${crypto.randomUUID()}`;
-    setSessionId(sessionId);
-    setSessions((current) => [{ id: sessionId, updated_at: Date.now() / 1000 }, ...current.filter((s) => s.id !== sessionId)]);
+  async function newChat() {
+    if (creatingChat) return;
+    setCreatingChat(true);
+    // Registers the chat on the orchestrator right away (title "New chat")
+    // instead of only in local React/localStorage state, so it's still
+    // there after a refresh even before the first message is sent — the
+    // first message then autonames it (see main.py's create_task).
+    const created = await createSession();
+    setCreatingChat(false);
+    if (!created) return;
+    setSessionId(created.id);
+    setChats((current) => [created, ...current.filter((c) => c.id !== created.id)]);
+  }
+
+  async function removeChat(id: string) {
+    setConfirmingDelete(null);
+    const ok = await deleteSession(id);
+    if (!ok) return;
+    setChats((current) => current.filter((c) => c.id !== id));
+    if (id === activeSession) {
+      await newChat();
+    }
   }
 
   const models = (status?.models as any)?.models as
@@ -63,21 +83,39 @@ export function StatusRail() {
 
       <div>
         <div className="mb-2.5 flex items-center justify-between text-[11px] text-zinc-500">
-          <span>Sessions</span>
-          <button onClick={newSession} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900" title="New session" aria-label="New session">
+          <span>Chats</span>
+          <button onClick={newChat} disabled={creatingChat} className="rounded-md p-1 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 disabled:opacity-40" title="New chat" aria-label="New chat">
             <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
-          {(sessions.length ? sessions : [{ id: getSessionId(), updated_at: Date.now() / 1000 }]).map((session) => (
-            <button
-              key={session.id}
-              onClick={() => setSessionId(session.id)}
-              className={`truncate rounded-lg border px-3 py-2 text-left font-sans text-[12px] ${session.id === activeSession ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"}`}
-              title={session.id}
+        <div className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+          {(chats.length ? chats : [{ id: getSessionId(), title: "New chat", updated_at: Date.now() / 1000 }]).map((chat) => (
+            <div
+              key={chat.id}
+              className={`group flex items-center gap-1 rounded-lg border px-2.5 py-2 text-left font-sans text-[12px] ${chat.id === activeSession ? "border-indigo-200 bg-indigo-50 text-indigo-800" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"}`}
             >
-              {session.id.replace(/^session-/, "").slice(0, 18)}
-            </button>
+              <button onClick={() => setSessionId(chat.id)} className="flex-1 truncate text-left" title={chat.title}>
+                {chat.title || "New chat"}
+              </button>
+              {confirmingDelete === chat.id ? (
+                <div className="flex shrink-0 items-center gap-1">
+                  <button onClick={() => removeChat(chat.id)} className="rounded p-0.5 text-rose-600 hover:bg-rose-50" title="Confirm delete">
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                  <button onClick={() => setConfirmingDelete(null)} className="rounded px-1 text-zinc-400 hover:bg-zinc-100">
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(chat.id)}
+                  className="shrink-0 rounded p-0.5 text-zinc-400 opacity-0 transition-opacity hover:bg-zinc-100 hover:text-rose-500 group-hover:opacity-100"
+                  title="Delete chat"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>

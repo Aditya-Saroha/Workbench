@@ -38,6 +38,7 @@ export interface StatusResponse {
 
 export interface SessionSummary {
   id: string;
+  title: string;
   updated_at: number;
 }
 
@@ -47,6 +48,43 @@ export async function listSessions(): Promise<{ sessions?: SessionSummary[]; err
     return await res.json();
   } catch {
     return { error: "network_error" };
+  }
+}
+
+/** Registers a brand-new chat ("New chat") on the orchestrator right away,
+ * so it's still there after a refresh even before the first message is
+ * sent — the first message then autonames it server-side. */
+export async function createSession(): Promise<SessionSummary | null> {
+  try {
+    const res = await fetch("/api/sessions", { method: "POST" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function renameSession(sessionId: string, title: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE",
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -200,4 +238,3 @@ export async function deleteDocument(
     return { error: "Could not reach the server" };
   }
 }
- 

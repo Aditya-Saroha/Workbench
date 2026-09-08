@@ -745,7 +745,7 @@ Frontend dependencies are managed by `client_ui/package.json` and `package-lock.
 ## 9. Project Structure
 
 ```text
-SIH_AI_Workbench/
+LIAMA_AI_Workbench/
 ├── client_ui/
 │   ├── app/
 │   │   ├── api/                         # Next.js backend proxy routes
